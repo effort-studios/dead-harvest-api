@@ -43,7 +43,7 @@ O front (`dead-harvest-web`) precisa usar exatamente este formato (tipo `SaveDat
 ```ts
 type Tile = {
   state: "soil" | "tilled" | "planted"; // terra, arada, plantada
-  crop: string | null;                  // tipo da planta, ex.: "wheat"
+  crop: string | null;                  // "corn" | "tomato" | "pumpkin" (ou null)
   growth: number;                       // ticks de crescimento (inteiro >= 0)
 };
 
@@ -51,12 +51,12 @@ type SaveData = {
   day: number;                          // inteiro >= 1
   money: number;                        // inteiro >= 0
   grid: Tile[][];                       // 10 linhas x 10 colunas
-  inventory: Record<string, number>;    // sementes/itens, ex.: { wheat: 3 }
+  inventory: Record<string, number>;    // sementes por planta, ex.: { corn: 3, tomato: 3 }
 };
 ```
 O GET devolve também `updatedAt` (ISO 8601).
 
-Save inicial: dia 1, R$ 100, grade toda `soil`, `{ wheat: 3 }`.
+Save inicial: dia 1, 100 de dinheiro, grade toda `soil`, sementes `{ corn: 3, tomato: 3, pumpkin: 2 }`.
 
 ## Testar rápido
 ```bash

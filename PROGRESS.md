@@ -16,6 +16,7 @@ Nada. Item 1 concluído; próximo trabalho é no dead-harvest-web.
 | 2026-10-20 | POST /players já cria o save inicial | GET /saves/:id nunca precisa criar nada; o front fica mais simples |
 | 2026-10-20 | Save com 1:1 por jogador (`playerId @unique`) | só existe um save por jogador no MVP |
 | 2026-10-20 | Grade validada como 10x10 no Zod | formato fixo do MVP; mudar aqui se o mapa crescer |
+| 2026-10-20 | Plantas do jogo: corn, tomato, pumpkin (antes `wheat`); save inicial com `{ corn: 3, tomato: 3, pumpkin: 2 }` | afeta o formato do save (valores de `crop` e chaves do inventário); o schema Zod continua aceitando qualquer string. Front converte `wheat` antigo em `corn` ao carregar |
 | 2026-10-20 | Node 20 (via nvm) | Node 16 global é antigo demais para as ferramentas atuais (Vite, tsx) |
 
 ## Problemas conhecidos
@@ -28,5 +29,6 @@ Nada. Item 1 concluído; próximo trabalho é no dead-harvest-web.
 3. Plantas com tempos e preços diferentes
 
 ## Histórico
+- 2026-10-20 – (item 4 do web) save inicial agora com sementes corn/tomato/pumpkin; README atualizado. Rotas inalteradas.
 - 2026-10-20 – (sessão do front) Nenhuma mudança na API; o front usa o formato SaveData e as 3 rotas sem alterações.
 - 2026-10-20 – Criado o repo: Express, Docker/Postgres, Prisma (Player/Save), migration `init`, rotas /health, /players, /saves, validação Zod, CORS por env. Testado com curl.

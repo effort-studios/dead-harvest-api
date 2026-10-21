@@ -11,7 +11,7 @@ export const saveSchema = z.object({
   day: z.number().int().min(1),
   money: z.number().int().min(0),
   grid: z.array(z.array(tileSchema).length(10)).length(10), // grade 10x10
-  inventory: z.record(z.string().max(30), z.number().int().min(0)), // ex.: { wheat: 3 }
+  inventory: z.record(z.string().max(30), z.number().int().min(0)), // ex.: { corn: 3 }
 });
 
 export type SaveData = z.infer<typeof saveSchema>;
@@ -24,6 +24,6 @@ export function newSave(): SaveData {
     grid: Array.from({ length: 10 }, () =>
       Array.from({ length: 10 }, () => ({ state: "soil" as const, crop: null, growth: 0 })),
     ),
-    inventory: { wheat: 3 },
+    inventory: { corn: 3, tomato: 3, pumpkin: 2 }, // sementes iniciais; a loja (item 5) vende mais
   };
 }
