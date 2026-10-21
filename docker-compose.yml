@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: dead-harvest-db
+    environment:
+      POSTGRES_USER: deadharvest
+      POSTGRES_PASSWORD: deadharvest
+      POSTGRES_DB: deadharvest
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:

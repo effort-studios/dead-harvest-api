@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  save      Save?
+}
+
+model Save {
+  id        String   @id @default(uuid())
+  // @unique = no máximo 1 save por jogador
+  playerId  String   @unique
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  day       Int      @default(1)
+  money     Int      @default(100)
+  grid      Json
+  inventory Json
+  updatedAt DateTime @updatedAt
+}
