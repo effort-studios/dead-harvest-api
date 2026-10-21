@@ -28,4 +28,5 @@ Nada. Item 1 concluído; próximo trabalho é no dead-harvest-web.
 3. Plantas com tempos e preços diferentes
 
 ## Histórico
+- 2026-10-20 – (sessão do front) Nenhuma mudança na API; o front usa o formato SaveData e as 3 rotas sem alterações.
 - 2026-10-20 – Criado o repo: Express, Docker/Postgres, Prisma (Player/Save), migration `init`, rotas /health, /players, /saves, validação Zod, CORS por env. Testado com curl.
