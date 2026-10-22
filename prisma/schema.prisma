@@ -23,5 +23,7 @@ model Save {
   money     Int      @default(100)
   grid      Json
   inventory Json
+  // id da árvore -> momento (ms) da última coleta de frutas
+  trees     Json     @default("{}")
   updatedAt DateTime @updatedAt
 }
