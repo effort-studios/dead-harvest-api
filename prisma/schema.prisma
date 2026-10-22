@@ -7,18 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Player {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  save      Save?
+// Convenção do banco: tabelas no plural e colunas em snake_case (@@map / @map).
+// No código TypeScript continua camelCase.
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  displayName String   @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  save        Save?
+
+  @@map("users")
 }
 
 model Save {
-  id        String   @id @default(uuid())
-  // @unique = no máximo 1 save por jogador
-  playerId  String   @unique
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid()) @db.Uuid
+  // @unique = no máximo 1 save por usuário
+  userId    String   @unique @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   day       Int      @default(1)
   // segundos desde o amanhecer do dia (0 até o fim do dia); 120 = manhã
   time      Int      @default(120)
@@ -27,5 +31,7 @@ model Save {
   inventory Json
   // id da árvore -> momento (ms) da última coleta de frutas
   trees     Json     @default("{}")
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("saves")
 }
