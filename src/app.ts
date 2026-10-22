@@ -3,7 +3,7 @@ import express, { ErrorRequestHandler } from "express";
 import { config } from "./config";
 import { authRouter } from "./routes/auth";
 import { healthRouter } from "./routes/health";
-import { savesRouter } from "./routes/saves";
+import { gameRouter } from "./routes/game";
 
 export const app = express();
 
@@ -12,7 +12,7 @@ app.use(express.json({ limit: "100kb" }));
 
 app.use(healthRouter);
 app.use(authRouter);
-app.use(savesRouter);
+app.use(gameRouter);
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   console.error(err);

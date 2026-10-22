@@ -33,12 +33,33 @@ npm run dev                 # API em http://localhost:3333
 - `prisma/` – schema do banco e migrations
 
 ## Rotas
+Sessão por cookie httpOnly (`dh_session`): o front chama com `credentials: 'include'`.
+
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/health` | `{ "status": "ok" }` |
-| POST | `/players` | cria jogador convidado + save inicial → `201 { "id": "..." }` |
-| GET | `/saves/:playerId` | carrega o save (404 se não existir) |
-| PUT | `/saves/:playerId` | salva o estado (400 se o corpo for inválido, 404 se o jogador não existir) |
+| POST | `/auth/register` | cria conta + save inicial e já entra |
+| POST | `/auth/login` / `/auth/logout` | entra / sai |
+| GET / PATCH | `/auth/me` | usuário logado / muda nome e avatar |
+| POST | `/auth/forgot-password` / `/auth/reset-password` | código por e-mail / nova senha com o código |
+| GET | `/game/catalog` | regras do jogo (plantas, frutas, árvores, preço do terreno, duração do dia); público |
+| GET | `/game/state` | estado do jogador logado |
+| POST | `/game/till` | `{ x, y, tiles: [{ row, col }] }`: ara os tiles que ainda são terra |
+| POST | `/game/plant` | `{ x, y, tiles, cropId }`: planta nos tiles arados, na ordem, enquanto houver semente |
+| POST | `/game/harvest` | `{ x, y, tiles }`: colhe as plantas maduras e paga a colheita |
+| POST | `/game/seeds/buy` | `{ cropId, quantity }`: compra o que o dinheiro der (até `quantity`) |
+| POST | `/game/fruits/sell` | `{ itemId, quantity? }`: vende (todas, sem `quantity`) |
+| POST | `/game/plots/buy` | `{ x, y }`: compra um terreno colado a um seu |
+| POST | `/game/trees/:treeId/harvest` | colhe as frutas de uma árvore, se já repôs |
+
+**O servidor é a fonte da verdade.** O cliente só diz o que quer fazer; preço, tempo e se pode são decididos
+em [src/services/game.ts](src/services/game.ts), com o catálogo do banco. Cada ação trava o save do jogador
+(`SELECT ... FOR UPDATE`), então ações ao mesmo tempo (cliques rápidos, duas abas) entram em fila.
+`tiles` tem de 1 a 10 tiles (um tile, ou uma linha/coluna do terreno `x, y`).
+
+Respostas das ações e do `/game/state`: o estado novo (abaixo). Erros: `400` corpo inválido, `401` sem
+sessão, `404` terreno/árvore/save inexistente, `409` regra do jogo recusada (`{ error }` com a mensagem
+para o jogador: sem dinheiro, planta verde, árvore sem frutas...).
 
 ## Banco de dados
 O servidor é a fonte da verdade do jogo: não há JSON no banco. Convenção: tabelas no plural e colunas em `snake_case` (`@@map`/`@map`; no código continua camelCase), ids `uuid`, datas `timestamptz`.
@@ -61,38 +82,37 @@ O servidor é a fonte da verdade do jogo: não há JSON no banco. Convenção: t
 - Outros ambientes: `npm run migrate:deploy`. Antes de abrir PR: `npm run db:drift` (garante que o schema e as migrations batem).
 - O Prisma não tem migration de volta: mudanças destrutivas em duas etapas (adiciona, migra os dados, só depois remove) e backup antes.
 
-## Formato do save (transitório)
-Hoje o front ainda envia e recebe o save inteiro neste formato (tipo `SaveData`, em [src/schemas/save.ts](src/schemas/save.ts)). A API o monta a partir das tabelas e o grava nelas; `growth` e `time` são calculados a partir dos timestamps. Isto deve ser substituído por ações validadas no servidor (arar, plantar, colher, comprar...).
+## Estado do jogador
+Montado a partir das tabelas em cada resposta; `growth`, `day` e `time` são calculados pelos timestamps.
 
 ```ts
 type Tile = {
   state: "soil" | "tilled" | "planted"; // terra, arada, plantada
-  crop: string | null;                  // id da planta, ex.: "corn", "tomato" (ou null)
-  growth: number;                       // ticks de crescimento (inteiro >= 0)
+  crop: string | null;                  // id da planta, ex.: "corn" (ou null)
+  growth: number;                       // segundos desde o plantio
 };
 
 type Plot = {
-  x: number;                            // posição do terreno na malha de terrenos (inteiro, pode ser negativo)
+  x: number;                            // posição do terreno na malha de terrenos (pode ser negativo)
   y: number;
   grid: Tile[][];                       // 10 linhas x 10 colunas
 };
 
-type SaveData = {
-  day: number;                          // inteiro >= 1
-  time: number;                         // segundos desde o amanhecer do dia (inteiro >= 0)
-  money: number;                        // inteiro >= 0
-  plots: Plot[];                        // terrenos do jogador (pelo menos 1; o inicial é 0,0)
-  inventory: Record<string, number>;    // sementes e frutas guardadas, ex.: { corn: 3, apple: 2 }
-  trees: Record<string, number>;        // id da árvore -> ms (Date.now) da última coleta de frutas
+type GameState = {
+  serverTime: number;                   // ms do relógio do servidor (o cliente acerta o relógio dele)
+  day: number;                          // >= 1
+  time: number;                         // segundos desde o início do dia
+  money: number;
+  plots: Plot[];                        // ordenados por y, x
+  inventory: Record<string, number>;    // sementes e frutas, ex.: { corn: 3, apple: 2 }
+  trees: Record<string, number>;        // id da árvore -> ms da última colheita
 };
 ```
-O GET devolve também `updatedAt` (ISO 8601).
 
-Save inicial: dia 1, 100 de dinheiro, um terreno em (0,0) todo `soil`, sementes `{ corn: 3, tomato: 3, pumpkin: 2 }`.
+Save inicial: 100 de dinheiro, um terreno em (0,0) todo `soil`, sementes `{ corn: 3, tomato: 3, pumpkin: 2 }`.
 
 ## Testar rápido
 ```bash
 curl localhost:3333/health
-curl -X POST localhost:3333/players          # copie o id
-curl localhost:3333/saves/<id>
+curl localhost:3333/game/catalog
 ```
