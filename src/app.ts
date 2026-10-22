@@ -7,7 +7,7 @@ import { savesRouter } from "./routes/saves";
 
 export const app = express();
 
-app.use(cors({ origin: config.webUrl })); // só o front pode chamar a API pelo navegador
+app.use(cors({ origin: config.webOrigins })); // só o front pode chamar a API pelo navegador
 app.use(express.json({ limit: "100kb" }));
 
 app.use(healthRouter);

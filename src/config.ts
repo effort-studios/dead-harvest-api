@@ -9,5 +9,6 @@ function required(name: string): string {
 
 export const config = {
   port: Number(process.env.PORT ?? 3333),
-  webUrl: required("WEB_URL"),
+  // origens do front liberadas no CORS, separadas por vírgula (ex.: localhost e o IP da rede)
+  webOrigins: required("WEB_URL").split(",").map((url) => url.trim()).filter(Boolean),
 };
