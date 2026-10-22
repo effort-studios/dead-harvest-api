@@ -18,7 +18,7 @@ export const config = {
     if (secret.length < 32) throw new Error("AUTH_SECRET precisa ter pelo menos 32 caracteres");
     return secret;
   })(),
-  // duração de um dia inteiro do jogo, em segundos (amanhecer, manhã, tarde e noite: um quarto cada)
+  // duração de um dia inteiro do jogo, em segundos (o relógio do jogo cobre 24h nesse tempo)
   dayLengthSeconds: (() => {
     const seconds = Number(process.env.DAY_LENGTH_SECONDS ?? 1440);
     if (!Number.isInteger(seconds) || seconds < 60) throw new Error("DAY_LENGTH_SECONDS precisa ser um inteiro >= 60");
