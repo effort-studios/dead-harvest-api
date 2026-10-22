@@ -28,6 +28,9 @@ type UserRow = {
   displayName: string;
   avatarSkin: string;
   avatarFace: string;
+  avatarEyes: string;
+  avatarHair: string;
+  avatarHairColor: string;
   avatarHat: string;
   avatarBeard: string;
   avatarOutfit: string;
@@ -38,7 +41,16 @@ const publicUser = (u: UserRow) => ({
   id: u.id,
   email: u.email,
   displayName: u.displayName,
-  avatar: { skin: u.avatarSkin, face: u.avatarFace, hat: u.avatarHat, beard: u.avatarBeard, outfit: u.avatarOutfit } as Avatar,
+  avatar: {
+    skin: u.avatarSkin,
+    eyes: u.avatarEyes,
+    face: u.avatarFace,
+    hair: u.avatarHair,
+    hairColor: u.avatarHairColor,
+    beard: u.avatarBeard,
+    hat: u.avatarHat,
+    outfit: u.avatarOutfit,
+  } as Avatar,
 });
 
 export type PublicUser = ReturnType<typeof publicUser>;
@@ -74,6 +86,9 @@ export async function updateProfile(userId: string, input: { displayName?: strin
       ...(input.avatar && {
         avatarSkin: input.avatar.skin,
         avatarFace: input.avatar.face,
+        avatarEyes: input.avatar.eyes,
+        avatarHair: input.avatar.hair,
+        avatarHairColor: input.avatar.hairColor,
         avatarHat: input.avatar.hat,
         avatarBeard: input.avatar.beard,
         avatarOutfit: input.avatar.outfit,

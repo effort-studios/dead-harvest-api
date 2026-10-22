@@ -38,11 +38,14 @@ model User {
   lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
 
   // Avatar: ids das peças (opções em src/game/avatar.ts; o banco confere com CHECK)
-  avatarSkin   String @default("light") @map("avatar_skin")
-  avatarFace   String @default("happy") @map("avatar_face")
-  avatarHat    String @default("straw") @map("avatar_hat")
-  avatarBeard  String @default("none") @map("avatar_beard")
-  avatarOutfit String @default("overalls_blue") @map("avatar_outfit")
+  avatarSkin      String @default("light") @map("avatar_skin")
+  avatarFace      String @default("happy") @map("avatar_face")
+  avatarEyes      String @default("green") @map("avatar_eyes")
+  avatarHair      String @default("short") @map("avatar_hair")
+  avatarHairColor String @default("brown") @map("avatar_hair_color")
+  avatarHat       String @default("straw") @map("avatar_hat")
+  avatarBeard     String @default("none") @map("avatar_beard")
+  avatarOutfit    String @default("overalls_blue") @map("avatar_outfit")
 
   save           Save?
   sessions       Session[]
