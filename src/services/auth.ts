@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 
 import { Prisma } from "@prisma/client";
 import { config } from "../config";
 import { prisma } from "../db";
+import { type Avatar } from "../game/avatar";
 import { DAY_START_SECONDS } from "../game/constants";
 import { sendPasswordResetCode } from "./mailer";
 import { DUMMY_HASH, hashPassword, verifyPassword } from "./password";
@@ -21,7 +22,24 @@ const INITIAL_INVENTORY: Record<string, number> = { corn: 3, tomato: 3, pumpkin:
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const hmac = (value: string) => createHmac("sha256", config.authSecret).update(value).digest("hex");
-const publicUser = (u: { id: string; email: string; displayName: string }) => ({ id: u.id, email: u.email, displayName: u.displayName });
+type UserRow = {
+  id: string;
+  email: string;
+  displayName: string;
+  avatarSkin: string;
+  avatarFace: string;
+  avatarHat: string;
+  avatarBeard: string;
+  avatarOutfit: string;
+};
+
+// O que o front pode saber do usuário (nunca o hash da senha)
+const publicUser = (u: UserRow) => ({
+  id: u.id,
+  email: u.email,
+  displayName: u.displayName,
+  avatar: { skin: u.avatarSkin, face: u.avatarFace, hat: u.avatarHat, beard: u.avatarBeard, outfit: u.avatarOutfit } as Avatar,
+});
 
 export type PublicUser = ReturnType<typeof publicUser>;
 
@@ -43,6 +61,26 @@ export async function userFromSession(token: string): Promise<PublicUser | null>
 
 export async function logout(token: string) {
   await prisma.session.deleteMany({ where: { tokenHash: sha256(token) } });
+}
+
+// ---------- Perfil ----------
+
+// Muda o nome e/ou o avatar. Os ids das peças já chegam validados pela rota (e o banco confere de novo).
+export async function updateProfile(userId: string, input: { displayName?: string; avatar?: Avatar }) {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      displayName: input.displayName,
+      ...(input.avatar && {
+        avatarSkin: input.avatar.skin,
+        avatarFace: input.avatar.face,
+        avatarHat: input.avatar.hat,
+        avatarBeard: input.avatar.beard,
+        avatarOutfit: input.avatar.outfit,
+      }),
+    },
+  });
+  return publicUser(user);
 }
 
 // ---------- Cadastro e login ----------

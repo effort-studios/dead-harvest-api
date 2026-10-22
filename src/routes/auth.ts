@@ -2,7 +2,8 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { clearSessionCookie, readCookie, requireAuth, SESSION_COOKIE, setSessionCookie } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
-import { AuthError, login, logout, register, requestPasswordReset, resetPassword } from "../services/auth";
+import { AVATAR_OPTIONS } from "../game/avatar";
+import { AuthError, login, logout, register, requestPasswordReset, resetPassword, updateProfile } from "../services/auth";
 
 export const authRouter = Router();
 
@@ -10,8 +11,17 @@ const email = z.string().trim().toLowerCase().email("E-mail inválido").max(254)
 // scrypt trata qualquer tamanho, mas um limite alto evita senhas gigantes para gastar CPU
 const password = z.string().min(8, "A senha precisa ter pelo menos 8 caracteres").max(128);
 
-const registerBody = z.object({ email, password, displayName: z.string().trim().min(2, "Nome muito curto").max(30, "Nome muito longo") });
+const displayName = z.string().trim().min(2, "Nome muito curto").max(30, "Nome muito longo");
+const registerBody = z.object({ email, password, displayName });
 const loginBody = z.object({ email, password: z.string().min(1).max(128) });
+const avatar = z.object({
+  skin: z.enum(AVATAR_OPTIONS.skin),
+  face: z.enum(AVATAR_OPTIONS.face),
+  hat: z.enum(AVATAR_OPTIONS.hat),
+  beard: z.enum(AVATAR_OPTIONS.beard),
+  outfit: z.enum(AVATAR_OPTIONS.outfit),
+});
+const profileBody = z.object({ displayName: displayName.optional(), avatar: avatar.optional() });
 const forgotBody = z.object({ email });
 const resetBody = z.object({ email, code: z.string().regex(/^\d{6}$/, "O código tem 6 dígitos"), newPassword: password });
 
@@ -71,6 +81,17 @@ authRouter.post("/auth/logout", async (req, res, next) => {
 
 authRouter.get("/auth/me", requireAuth, (_req, res) => {
   res.json({ user: res.locals.user });
+});
+
+// Edita o próprio perfil (nome e/ou avatar)
+authRouter.patch("/auth/me", requireAuth, async (req, res, next) => {
+  const body = parse(profileBody, req, res);
+  if (!body) return;
+  try {
+    res.json({ user: await updateProfile(res.locals.user.id, body) });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Sempre 204, exista o e-mail ou não
