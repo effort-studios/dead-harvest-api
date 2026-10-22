@@ -7,10 +7,17 @@ export const tileSchema = z.object({
   growth: z.number().int().min(0), // ticks de crescimento acumulados
 });
 
+// Terreno 10x10; (x, y) é a posição do terreno na malha de terrenos (o inicial é 0,0)
+export const plotSchema = z.object({
+  x: z.number().int(),
+  y: z.number().int(),
+  grid: z.array(z.array(tileSchema).length(10)).length(10), // grade 10x10
+});
+
 export const saveSchema = z.object({
   day: z.number().int().min(1),
   money: z.number().int().min(0),
-  grid: z.array(z.array(tileSchema).length(10)).length(10), // grade 10x10
+  plots: z.array(plotSchema).min(1),
   inventory: z.record(z.string().max(30), z.number().int().min(0)), // ex.: { corn: 3 }
 });
 
@@ -21,9 +28,15 @@ export function newSave(): SaveData {
   return {
     day: 1,
     money: 100,
-    grid: Array.from({ length: 10 }, () =>
-      Array.from({ length: 10 }, () => ({ state: "soil" as const, crop: null, growth: 0 })),
-    ),
+    plots: [
+      {
+        x: 0,
+        y: 0,
+        grid: Array.from({ length: 10 }, () =>
+          Array.from({ length: 10 }, () => ({ state: "soil" as const, crop: null, growth: 0 })),
+        ),
+      },
+    ],
     inventory: { corn: 3, tomato: 3, pumpkin: 2 }, // sementes iniciais; a loja (item 5) vende mais
   };
 }

@@ -21,7 +21,7 @@ model Save {
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   day       Int      @default(1)
   money     Int      @default(100)
-  grid      Json
+  plots     Json
   inventory Json
   updatedAt DateTime @updatedAt
 }

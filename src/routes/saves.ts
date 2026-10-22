@@ -5,8 +5,8 @@ import { getSave, updateSave } from "../services/saves";
 export const savesRouter = Router();
 
 // Só devolve os campos do jogo (sem ids internos)
-function toResponse(s: { day: number; money: number; grid: unknown; inventory: unknown; updatedAt: Date }) {
-  return { day: s.day, money: s.money, grid: s.grid, inventory: s.inventory, updatedAt: s.updatedAt };
+function toResponse(s: { day: number; money: number; plots: unknown; inventory: unknown; updatedAt: Date }) {
+  return { day: s.day, money: s.money, plots: s.plots, inventory: s.inventory, updatedAt: s.updatedAt };
 }
 
 savesRouter.get("/saves/:playerId", async (req, res, next) => {
