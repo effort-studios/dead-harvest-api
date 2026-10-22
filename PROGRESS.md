@@ -30,14 +30,13 @@ Nada.
 
 ## Problemas conhecidos
 - Sem limite de taxa nas rotas do jogo (só nas de login).
-- A duração do dia e as fases do dia ainda estão fixas no front (`daycycle.ts`) para desenhar o céu; o dia e a hora em si vêm do servidor.
 - Node global da máquina é 16; é preciso usar Node 18+ (`nvm use 20.20.2`).
 
 ## Próximos passos
 1. Ferramentas no inventário (a barra de itens hoje só tem sementes)
-2. Limite de taxa nas ações do jogo
 
 ## Histórico
+- 2026-10-22 – Duração do dia em `DAY_LENGTH_SECONDS` no `.env` (agora 1440 = 24 min); início do jogo novo = 1/4 do dia. O front lê do catálogo.
 - 2026-10-22 – Ações do jogo no servidor (`services/game.ts`, `routes/game.ts`, `schemas/game.ts`) e `GET /game/catalog`/`GET /game/state`; removidos `GET/PUT /saves/me`. Testado com 31 verificações (regras, erros, corrida de 20 compras simultâneas). Chapéu de flor e camisa amarela removidos do avatar (migration `avatar_drop_flower_yellow_shirt`).
 - 2026-10-22 – Tabelas de catálogo e de estado com FK no lugar do JSONB (migration `game_state_tables`, com carga do catálogo); `saves` ganhou `game_started_at`; README com convenções de banco e migrations; scripts `migrate:deploy`, `migrate:status`, `db:drift`.
 - 2026-10-22 – Banco em snake_case (migration `snake_case_and_types`).

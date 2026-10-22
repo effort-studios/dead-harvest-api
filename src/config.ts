@@ -18,6 +18,12 @@ export const config = {
     if (secret.length < 32) throw new Error("AUTH_SECRET precisa ter pelo menos 32 caracteres");
     return secret;
   })(),
+  // duração de um dia inteiro do jogo, em segundos (amanhecer, manhã, tarde e noite: um quarto cada)
+  dayLengthSeconds: (() => {
+    const seconds = Number(process.env.DAY_LENGTH_SECONDS ?? 1440);
+    if (!Number.isInteger(seconds) || seconds < 60) throw new Error("DAY_LENGTH_SECONDS precisa ser um inteiro >= 60");
+    return seconds;
+  })(),
   sessionDays: 30, // duração do login
   resetCodeMinutes: 15, // validade do código de redefinição
   resetMaxAttempts: 5, // erros de código antes de o pedido ser invalidado
