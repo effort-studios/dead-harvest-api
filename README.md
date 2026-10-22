@@ -47,18 +47,24 @@ type Tile = {
   growth: number;                       // ticks de crescimento (inteiro >= 0)
 };
 
+type Plot = {
+  x: number;                            // posição do terreno na malha de terrenos (inteiro, pode ser negativo)
+  y: number;
+  grid: Tile[][];                       // 10 linhas x 10 colunas
+};
+
 type SaveData = {
   day: number;                          // inteiro >= 1
   time: number;                         // segundos desde o amanhecer do dia (inteiro >= 0)
   money: number;                        // inteiro >= 0
-  grid: Tile[][];                       // 10 linhas x 10 colunas
+  plots: Plot[];                        // terrenos do jogador (pelo menos 1; o inicial é 0,0)
   inventory: Record<string, number>;    // sementes e frutas guardadas, ex.: { corn: 3, apple: 2 }
   trees: Record<string, number>;        // id da árvore -> ms (Date.now) da última coleta de frutas
 };
 ```
 O GET devolve também `updatedAt` (ISO 8601).
 
-Save inicial: dia 1, 100 de dinheiro, grade toda `soil`, sementes `{ corn: 3, tomato: 3, pumpkin: 2 }`.
+Save inicial: dia 1, 100 de dinheiro, um terreno em (0,0) todo `soil`, sementes `{ corn: 3, tomato: 3, pumpkin: 2 }`.
 
 ## Testar rápido
 ```bash
