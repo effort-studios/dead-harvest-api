@@ -22,7 +22,15 @@ Nada. Item 1 concluído; próximo trabalho é no dead-harvest-web.
 | 2026-10-22 | Preço do terreno não é validado na API | cálculo fica só no front (1000, +50% por compra); sem autenticação o save já é confiável só por convenção, no MVP |
 | 2026-10-20 | Node 20 (via nvm) | Node 16 global é antigo demais para as ferramentas atuais (Vite, tsx) |
 
+| 2026-10-22 | Banco em snake_case, ids uuid, datas timestamptz, CHECKs (migration com RENAME, sem perder dados) | padronização pedida; DROP+CREATE do Prisma apagaria o progresso |
+| 2026-10-22 | **Servidor é a fonte da verdade; sem JSONB.** Tabelas: catálogo (`items`, `crops`, `trees`) e estado (`saves`, `plots`, `tiles`, `inventory_items`, `tree_harvests`), tudo com FK | decisão do dono do projeto: o front nunca é a fonte de verdade |
+| 2026-10-22 | Crescimento e frutas em tempo real por timestamp (`tiles.planted_at`, `tree_harvests.harvested_at`); dia/hora do jogo = agora - `saves.game_started_at` | o servidor não confia em ticks do cliente; plantas crescem com o jogo fechado |
+| 2026-10-22 | Tile só existe se arado ou plantado | terra sem arar é a ausência de linha: menos linhas |
+| 2026-10-22 | Rotas `GET/PUT /saves/:id` mantidas **temporariamente** com o formato antigo, montado a partir das tabelas | o front continua funcionando; o PUT ainda deixa o cliente escrever o estado: será trocado por ações validadas no servidor |
+
 ## Problemas conhecidos
+- O `PUT /saves` ainda aceita o estado vindo do cliente (dinheiro, plantas, inventário). Enquanto não existirem as ações no servidor, o front continua sendo, na prática, a fonte da verdade.
+- Sem login: qualquer um com o id (uuid) lê e grava o save.
 - Sem autenticação: qualquer um com o id do jogador lê/sobrescreve o save (aceito no MVP).
 - Node global da máquina é 16; é preciso usar Node 18+ (`nvm use 20.20.2`).
 
@@ -32,6 +40,8 @@ Nada. Item 1 concluído; próximo trabalho é no dead-harvest-web.
 3. Plantas com tempos e preços diferentes
 
 ## Histórico
+- 2026-10-22 – Tabelas de catálogo e de estado com FK no lugar do JSONB (migration `game_state_tables`, com carga do catálogo); `saves` ganhou `game_started_at`; README com convenções de banco e migrations; scripts `migrate:deploy`, `migrate:status`, `db:drift`.
+- 2026-10-22 – Banco em snake_case (migration `snake_case_and_types`).
 - 2026-10-22 – Save passa a ter `plots` (lista de terrenos) no lugar de `grid`: schema Zod, `newSave`, rotas, README e migration `plots`, que converte os saves existentes. Quebra o contrato com o front; mergear junto com o PR do web.
 - 2026-10-20 – (item 4 do web) save inicial agora com sementes corn/tomato/pumpkin; README atualizado. Rotas inalteradas.
 - 2026-10-20 – (sessão do front) Nenhuma mudança na API; o front usa o formato SaveData e as 3 rotas sem alterações.

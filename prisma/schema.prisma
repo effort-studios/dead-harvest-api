@@ -9,6 +9,25 @@ datasource db {
 
 // Convenção do banco: tabelas no plural e colunas em snake_case (@@map / @map).
 // No código TypeScript continua camelCase.
+//
+// O servidor é a fonte da verdade do jogo: nada de estado em JSON. Duas famílias de tabelas:
+//   catálogo (items, crops, trees): regras do jogo, iguais para todos, populadas por migration;
+//   estado do jogador (saves, plots, tiles, inventory_items, tree_harvests): tudo com FK.
+
+enum ItemKind {
+  seed
+  fruit
+
+  @@map("item_kind")
+}
+
+enum TileState {
+  tilled // arado; terra sem arar não tem linha (é a ausência de linha)
+  planted
+
+  @@map("tile_state")
+}
+
 model User {
   id          String   @id @default(uuid()) @db.Uuid
   displayName String   @map("display_name")
@@ -18,20 +37,126 @@ model User {
   @@map("users")
 }
 
+// ---------- Catálogo ----------
+
+// Tudo que pode ficar no inventário (hoje sementes e frutas; ferramentas entram aqui depois).
+// O id é um slug estável ("corn", "apple") e é a chave usada pelo jogo.
+model Item {
+  id        String   @id
+  kind      ItemKind
+  name      String
+  buyPrice  Int?     @map("buy_price") // preço na loja; nulo = não se compra
+  sellPrice Int?     @map("sell_price") // preço de venda; nulo = não se vende
+  sortOrder Int      @map("sort_order")
+
+  crop      Crop?
+  trees     Tree[]
+  inventory InventoryItem[]
+
+  @@map("items")
+}
+
+model Crop {
+  id           String @id
+  name         String
+  growSeconds  Int    @map("grow_seconds") // tempo até amadurecer
+  harvestPrice Int    @map("harvest_price") // dinheiro ao colher
+  seedItemId   String @unique @map("seed_item_id")
+  seedItem     Item   @relation(fields: [seedItemId], references: [id])
+
+  tiles Tile[]
+
+  @@map("crops")
+}
+
+// Árvores frutíferas do cenário: as mesmas para todos os jogadores
+model Tree {
+  id               String @id
+  fruitItemId      String @map("fruit_item_id")
+  fruitItem        Item   @relation(fields: [fruitItemId], references: [id])
+  row              Int // posição no mapa do mundo (pode ser negativa)
+  col              Int
+  fruitsPerHarvest Int    @map("fruits_per_harvest")
+  regrowSeconds    Int    @map("regrow_seconds")
+
+  harvests TreeHarvest[]
+
+  @@index([fruitItemId])
+  @@map("trees")
+}
+
+// ---------- Estado do jogador ----------
+
 model Save {
-  id        String   @id @default(uuid()) @db.Uuid
+  id            String   @id @default(uuid()) @db.Uuid
   // @unique = no máximo 1 save por usuário
-  userId    String   @unique @map("user_id") @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  day       Int      @default(1)
-  // segundos desde o amanhecer do dia (0 até o fim do dia); 120 = manhã
-  time      Int      @default(120)
-  money     Int      @default(100)
-  plots     Json
-  inventory Json
-  // id da árvore -> momento (ms) da última coleta de frutas
-  trees     Json     @default("{}")
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId        String   @unique @map("user_id") @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  money         Int      @default(100)
+  // O relógio do jogo é derivado do relógio do servidor: dia e hora = tempo desde este instante
+  gameStartedAt DateTime @default(now()) @map("game_started_at") @db.Timestamptz(3)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  plots        Plot[]
+  inventory    InventoryItem[]
+  treeHarvests TreeHarvest[]
 
   @@map("saves")
+}
+
+// Terreno 10x10; (x, y) é a posição na malha de terrenos (o inicial é 0,0)
+model Plot {
+  id     String @id @default(uuid()) @db.Uuid
+  saveId String @map("save_id") @db.Uuid
+  save   Save   @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  x      Int
+  y      Int
+
+  tiles Tile[]
+
+  @@unique([saveId, x, y])
+  @@map("plots")
+}
+
+// Só existe linha para tile arado ou plantado; o resto do terreno é terra sem arar
+model Tile {
+  plotId    String    @map("plot_id") @db.Uuid
+  plot      Plot      @relation(fields: [plotId], references: [id], onDelete: Cascade)
+  row       Int       @db.SmallInt // 0..9
+  col       Int       @db.SmallInt // 0..9
+  state     TileState
+  cropId    String?   @map("crop_id")
+  crop      Crop?     @relation(fields: [cropId], references: [id], onDelete: Restrict)
+  // O crescimento é tempo real: a planta amadurece em plantedAt + crops.grow_seconds
+  plantedAt DateTime? @map("planted_at") @db.Timestamptz(3)
+
+  @@id([plotId, row, col])
+  @@index([cropId])
+  @@map("tiles")
+}
+
+model InventoryItem {
+  saveId   String @map("save_id") @db.Uuid
+  save     Save   @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  itemId   String @map("item_id")
+  item     Item   @relation(fields: [itemId], references: [id])
+  quantity Int
+
+  @@id([saveId, itemId])
+  @@index([itemId])
+  @@map("inventory_items")
+}
+
+// Quando o jogador colheu cada árvore pela última vez (sem linha = nunca colheu)
+model TreeHarvest {
+  saveId      String   @map("save_id") @db.Uuid
+  save        Save     @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  treeId      String   @map("tree_id")
+  tree        Tree     @relation(fields: [treeId], references: [id])
+  harvestedAt DateTime @map("harvested_at") @db.Timestamptz(3)
+
+  @@id([saveId, treeId])
+  @@index([treeId])
+  @@map("tree_harvests")
 }

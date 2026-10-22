@@ -1,19 +1,19 @@
 import { Router } from "express";
+import { z } from "zod";
 import { saveSchema } from "../schemas/save";
-import { getSave, updateSave } from "../services/saves";
+import { getSave, InvalidSaveError, updateSave } from "../services/saves";
 
 export const savesRouter = Router();
 
-// Só devolve os campos do jogo (sem ids internos)
-function toResponse(s: { day: number; time: number; money: number; plots: unknown; inventory: unknown; trees: unknown; updatedAt: Date }) {
-  return { day: s.day, time: s.time, money: s.money, plots: s.plots, inventory: s.inventory, trees: s.trees, updatedAt: s.updatedAt };
-}
+// O id vira uuid no banco; um id que não é uuid não pode existir (evita erro 500 do banco)
+const isId = (id: string) => z.string().uuid().safeParse(id).success;
 
 savesRouter.get("/saves/:playerId", async (req, res, next) => {
   try {
+    if (!isId(req.params.playerId)) return res.status(404).json({ error: "Save não encontrado" });
     const save = await getSave(req.params.playerId);
     if (!save) return res.status(404).json({ error: "Save não encontrado" });
-    res.json(toResponse(save));
+    res.json(save);
   } catch (err) {
     next(err);
   }
@@ -21,14 +21,16 @@ savesRouter.get("/saves/:playerId", async (req, res, next) => {
 
 savesRouter.put("/saves/:playerId", async (req, res, next) => {
   try {
+    if (!isId(req.params.playerId)) return res.status(404).json({ error: "Jogador não encontrado" });
     const parsed = saveSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Save inválido", details: parsed.error.issues });
     }
     const save = await updateSave(req.params.playerId, parsed.data);
     if (!save) return res.status(404).json({ error: "Jogador não encontrado" });
-    res.json(toResponse(save));
+    res.json(save);
   } catch (err) {
+    if (err instanceof InvalidSaveError) return res.status(400).json({ error: err.message });
     next(err);
   }
 });

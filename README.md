@@ -21,7 +21,10 @@ npm run dev                 # API em http://localhost:3333
 | `npm run dev` | API com recarga automática |
 | `npm run build` / `npm start` | compila e roda a versão de produção |
 | `npm run db:up` / `db:down` | liga / desliga o Postgres |
-| `npm run migrate` | cria/aplica migrations (`prisma migrate dev`) |
+| `npm run migrate` | cria/aplica migrations em desenvolvimento (`prisma migrate dev`) |
+| `npm run migrate:deploy` | aplica as migrations pendentes sem criar nada (outros ambientes, CI) |
+| `npm run migrate:status` | mostra quais migrations já foram aplicadas |
+| `npm run db:drift` | falha se o banco divergir do `schema.prisma` |
 
 ## Estrutura
 - `src/routes` – rotas HTTP (recebem a requisição e respondem)
@@ -37,8 +40,29 @@ npm run dev                 # API em http://localhost:3333
 | GET | `/saves/:playerId` | carrega o save (404 se não existir) |
 | PUT | `/saves/:playerId` | salva o estado (400 se o corpo for inválido, 404 se o jogador não existir) |
 
-## Formato do save
-O front (`dead-harvest-web`) precisa usar exatamente este formato (tipo `SaveData`). A fonte da verdade é [src/schemas/save.ts](src/schemas/save.ts).
+## Banco de dados
+O servidor é a fonte da verdade do jogo: não há JSON no banco. Convenção: tabelas no plural e colunas em `snake_case` (`@@map`/`@map`; no código continua camelCase), ids `uuid`, datas `timestamptz`.
+
+| Grupo | Tabelas | Observação |
+|---|---|---|
+| Conta | `users` | |
+| Catálogo (regras do jogo, iguais para todos, populadas por migration) | `items`, `crops`, `trees` | `items` = sementes e frutas; `crops` = tempo de crescimento e preço de colheita; `trees` = árvores do cenário |
+| Estado do jogador | `saves`, `plots`, `tiles`, `inventory_items`, `tree_harvests` | tudo com FK para `saves` (apagar o usuário apaga tudo em cascata) |
+
+- Só existe linha em `tiles` para tile **arado ou plantado**; terra sem arar é a ausência de linha.
+- Plantas e árvores usam **timestamps** (`tiles.planted_at`, `tree_harvests.harvested_at`), então crescem em tempo real, mesmo com o jogo fechado. O dia/hora do jogo vem de `saves.game_started_at`.
+- Regras (`CHECK`): dinheiro >= 0, tile plantado tem planta e hora, quantidades > 0, preços coerentes com o tipo do item.
+
+### Migrations
+- Criar: altere o `schema.prisma` e rode `npm run migrate -- --name <o_que_mudou>` (nome em snake_case).
+- **Renomear coluna/tabela nunca com o SQL gerado sozinho**: o Prisma gera `DROP` + `CREATE` e apaga os dados. Use `--create-only` e escreva `ALTER ... RENAME` (veja `*_snake_case_and_types`).
+- Dados do catálogo (novas plantas, itens) entram por migration, com `INSERT`.
+- Ao mesclar uma branch com migration, **renomeie a pasta** para um timestamp posterior ao da `main`, para a ordem de aplicação ser a ordem de criação.
+- Outros ambientes: `npm run migrate:deploy`. Antes de abrir PR: `npm run db:drift` (garante que o schema e as migrations batem).
+- O Prisma não tem migration de volta: mudanças destrutivas em duas etapas (adiciona, migra os dados, só depois remove) e backup antes.
+
+## Formato do save (transitório)
+Hoje o front ainda envia e recebe o save inteiro neste formato (tipo `SaveData`, em [src/schemas/save.ts](src/schemas/save.ts)). A API o monta a partir das tabelas e o grava nelas; `growth` e `time` são calculados a partir dos timestamps. Isto deve ser substituído por ações validadas no servidor (arar, plantar, colher, comprar...).
 
 ```ts
 type Tile = {

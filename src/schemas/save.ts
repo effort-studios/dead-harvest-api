@@ -4,7 +4,7 @@ import { z } from "zod";
 export const tileSchema = z.object({
   state: z.enum(["soil", "tilled", "planted"]), // terra, arada, plantada
   crop: z.string().max(30).nullable(), // tipo da planta (null se não houver)
-  growth: z.number().int().min(0), // ticks de crescimento acumulados
+  growth: z.number().int().min(0).max(10_000_000), // segundos de crescimento acumulados
 });
 
 // Terreno 10x10; (x, y) é a posição do terreno na malha de terrenos (o inicial é 0,0)
@@ -24,23 +24,3 @@ export const saveSchema = z.object({
 });
 
 export type SaveData = z.infer<typeof saveSchema>;
-
-// Save inicial de um jogador novo
-export function newSave(): SaveData {
-  return {
-    day: 1,
-    time: 120,
-    money: 100,
-    plots: [
-      {
-        x: 0,
-        y: 0,
-        grid: Array.from({ length: 10 }, () =>
-          Array.from({ length: 10 }, () => ({ state: "soil" as const, crop: null, growth: 0 })),
-        ),
-      },
-    ],
-    inventory: { corn: 3, tomato: 3, pumpkin: 2 }, // sementes iniciais; a loja (item 5) vende mais
-    trees: {},
-  };
-}
