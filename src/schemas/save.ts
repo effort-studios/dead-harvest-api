@@ -9,6 +9,7 @@ export const tileSchema = z.object({
 
 export const saveSchema = z.object({
   day: z.number().int().min(1),
+  time: z.number().int().min(0).max(100000).default(120), // segundos do dia; o front define a duração do dia
   money: z.number().int().min(0),
   grid: z.array(z.array(tileSchema).length(10)).length(10), // grade 10x10
   inventory: z.record(z.string().max(30), z.number().int().min(0)), // ex.: { corn: 3 }
@@ -21,6 +22,7 @@ export type SaveData = z.infer<typeof saveSchema>;
 export function newSave(): SaveData {
   return {
     day: 1,
+    time: 120,
     money: 100,
     grid: Array.from({ length: 10 }, () =>
       Array.from({ length: 10 }, () => ({ state: "soil" as const, crop: null, growth: 0 })),

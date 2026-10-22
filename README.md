@@ -49,6 +49,7 @@ type Tile = {
 
 type SaveData = {
   day: number;                          // inteiro >= 1
+  time: number;                         // segundos desde o amanhecer do dia (inteiro >= 0)
   money: number;                        // inteiro >= 0
   grid: Tile[][];                       // 10 linhas x 10 colunas
   inventory: Record<string, number>;    // sementes e frutas guardadas, ex.: { corn: 3, apple: 2 }
