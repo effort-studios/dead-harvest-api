@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Save" ADD COLUMN     "time" INTEGER NOT NULL DEFAULT 120;

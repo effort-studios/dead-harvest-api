@@ -16,9 +16,11 @@ export const plotSchema = z.object({
 
 export const saveSchema = z.object({
   day: z.number().int().min(1),
+  time: z.number().int().min(0).max(100000).default(120), // segundos do dia; o front define a duração do dia
   money: z.number().int().min(0),
   plots: z.array(plotSchema).min(1),
   inventory: z.record(z.string().max(30), z.number().int().min(0)), // ex.: { corn: 3 }
+  trees: z.record(z.string().max(30), z.number().int().min(0)).default({}), // id da árvore -> ms da última coleta
 });
 
 export type SaveData = z.infer<typeof saveSchema>;
@@ -27,6 +29,7 @@ export type SaveData = z.infer<typeof saveSchema>;
 export function newSave(): SaveData {
   return {
     day: 1,
+    time: 120,
     money: 100,
     plots: [
       {
@@ -38,5 +41,6 @@ export function newSave(): SaveData {
       },
     ],
     inventory: { corn: 3, tomato: 3, pumpkin: 2 }, // sementes iniciais; a loja (item 5) vende mais
+    trees: {},
   };
 }
