@@ -8,8 +8,8 @@ export const AVATAR_OPTIONS = {
   hair: ["short", "messy", "long", "ponytail", "bun", "buzz", "bald"],
   hairColor: ["black", "brown", "auburn", "ginger", "blonde", "gray"],
   beard: ["none", "stubble", "mustache", "goatee", "full"],
-  hat: ["none", "straw", "cap", "beanie", "cowboy", "flower"],
-  outfit: ["overalls_blue", "overalls_red", "shirt_green", "shirt_purple", "coat_brown", "shirt_yellow"],
+  hat: ["none", "straw", "cap", "beanie", "cowboy"],
+  outfit: ["overalls_blue", "overalls_red", "shirt_green", "shirt_purple", "coat_brown"],
 } as const;
 
 export type AvatarPart = keyof typeof AVATAR_OPTIONS;
