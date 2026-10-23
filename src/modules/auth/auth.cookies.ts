@@ -1,6 +1,5 @@
-import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { config } from "../config";
-import { userFromSession, type PublicUser } from "../services/auth";
+import type { Request, Response } from "express";
+import { config } from "../../config";
 
 export const SESSION_COOKIE = "dh_session";
 
@@ -8,7 +7,12 @@ export const SESSION_COOKIE = "dh_session";
 export function readCookie(req: Request, name: string): string | undefined {
   for (const part of (req.headers.cookie ?? "").split(";")) {
     const [key, ...rest] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
+    if (key !== name) continue;
+    try {
+      return decodeURIComponent(rest.join("="));
+    } catch {
+      return undefined; // cookie com escape inválido (%zz): trata como se não existisse, em vez de dar 500
+    }
   }
   return undefined;
 }
@@ -22,16 +26,3 @@ export function setSessionCookie(res: Response, token: string, expiresAt: Date) 
 export function clearSessionCookie(res: Response) {
   res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: "lax", secure: config.isProduction, path: "/" });
 }
-
-// Rotas protegidas: sem sessão válida, 401. O usuário fica em res.locals.user.
-export const requireAuth: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const token = readCookie(req, SESSION_COOKIE);
-    const user = token ? await userFromSession(token) : null;
-    if (!user) return res.status(401).json({ error: "Não autenticado" });
-    res.locals.user = user satisfies PublicUser;
-    next();
-  } catch (err) {
-    next(err);
-  }
-};

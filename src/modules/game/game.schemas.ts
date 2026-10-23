@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { GRID_SIZE } from "../game/constants";
+import { GRID_SIZE } from "./game.constants";
 
 // Corpo das ações do jogo. O cliente só diz O QUE quer fazer; quanto custa, se pode e o resultado
-// quem decide é o servidor (services/game.ts).
+// quem decide é o servidor (game-actions.service.ts).
 
 const id = z.string().min(1).max(30);
 const cell = z.number().int().min(0).max(GRID_SIZE - 1);
@@ -28,3 +28,5 @@ export const sellFruitSchema = z.object({ itemId: id, quantity: z.number().int()
 export const buyPlotSchema = z.object({ x: z.number().int().min(-50).max(50), y: z.number().int().min(-50).max(50) });
 
 export type TilesInput = z.infer<typeof tilesSchema>;
+
+export const treeParams = z.object({ treeId: id });

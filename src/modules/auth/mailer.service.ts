@@ -1,4 +1,4 @@
-import { config } from "../config";
+import { config } from "../../config";
 
 // Envio de e-mail. Ainda não há provedor configurado: em desenvolvimento o e-mail é escrito no log da API.
 // Em produção isto precisa ser trocado por um provedor real (SMTP, Resend, SendGrid...); até lá,

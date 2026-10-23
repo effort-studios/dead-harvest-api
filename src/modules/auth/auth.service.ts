@@ -1,59 +1,19 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { config } from "../config";
-import { prisma } from "../db";
-import { type Avatar } from "../game/avatar";
-import { DAY_START_SECONDS } from "../game/constants";
-import { sendPasswordResetCode } from "./mailer";
-import { DUMMY_HASH, hashPassword, verifyPassword } from "./password";
-
-// Erro com o status HTTP que a rota deve devolver
-export class AuthError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { config } from "../../config";
+import { prisma } from "../../shared/database/prisma";
+import { BadRequestError, ConflictError, UnauthorizedError } from "../../shared/errors/AppError";
+import { DAY_START_SECONDS } from "../game/game.constants";
+import { toPublicUser, type PublicUser } from "../users/user.mapper";
+import { sendPasswordResetCode } from "./mailer.service";
+import { DUMMY_HASH, hashPassword, verifyPassword } from "./password.service";
+import type { LoginInput, RegisterInput, ResetPasswordInput } from "./auth.schemas";
 
 // Sementes que todo jogador novo recebe (id do item -> quantidade)
 const INITIAL_INVENTORY: Record<string, number> = { corn: 3, tomato: 3, pumpkin: 2 };
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const hmac = (value: string) => createHmac("sha256", config.authSecret).update(value).digest("hex");
-type UserRow = {
-  id: string;
-  email: string;
-  displayName: string;
-  avatarSkin: string;
-  avatarFace: string;
-  avatarEyes: string;
-  avatarHair: string;
-  avatarHairColor: string;
-  avatarHat: string;
-  avatarBeard: string;
-  avatarOutfit: string;
-};
-
-// O que o front pode saber do usuário (nunca o hash da senha)
-const publicUser = (u: UserRow) => ({
-  id: u.id,
-  email: u.email,
-  displayName: u.displayName,
-  avatar: {
-    skin: u.avatarSkin,
-    eyes: u.avatarEyes,
-    face: u.avatarFace,
-    hair: u.avatarHair,
-    hairColor: u.avatarHairColor,
-    beard: u.avatarBeard,
-    hat: u.avatarHat,
-    outfit: u.avatarOutfit,
-  } as Avatar,
-});
-
-export type PublicUser = ReturnType<typeof publicUser>;
 
 // ---------- Sessão ----------
 
@@ -68,39 +28,16 @@ async function createSession(userId: string, userAgent: string | undefined) {
 export async function userFromSession(token: string): Promise<PublicUser | null> {
   const session = await prisma.session.findUnique({ where: { tokenHash: sha256(token) }, include: { user: true } });
   if (!session || session.expiresAt <= new Date()) return null;
-  return publicUser(session.user);
+  return toPublicUser(session.user);
 }
 
 export async function logout(token: string) {
   await prisma.session.deleteMany({ where: { tokenHash: sha256(token) } });
 }
 
-// ---------- Perfil ----------
-
-// Muda o nome e/ou o avatar. Os ids das peças já chegam validados pela rota (e o banco confere de novo).
-export async function updateProfile(userId: string, input: { displayName?: string; avatar?: Avatar }) {
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      displayName: input.displayName,
-      ...(input.avatar && {
-        avatarSkin: input.avatar.skin,
-        avatarFace: input.avatar.face,
-        avatarEyes: input.avatar.eyes,
-        avatarHair: input.avatar.hair,
-        avatarHairColor: input.avatar.hairColor,
-        avatarHat: input.avatar.hat,
-        avatarBeard: input.avatar.beard,
-        avatarOutfit: input.avatar.outfit,
-      }),
-    },
-  });
-  return publicUser(user);
-}
-
 // ---------- Cadastro e login ----------
 
-export async function register(input: { email: string; password: string; displayName: string }, userAgent?: string) {
+export async function register(input: RegisterInput, userAgent?: string) {
   const passwordHash = await hashPassword(input.password);
   try {
     // O usuário já nasce com o save inicial: um terreno vazio em 0,0 e as sementes
@@ -119,22 +56,22 @@ export async function register(input: { email: string; password: string; display
         },
       },
     });
-    return { user: publicUser(user), session: await createSession(user.id, userAgent) };
+    return { user: toPublicUser(user), session: await createSession(user.id, userAgent) };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      throw new AuthError(409, "Já existe uma conta com este e-mail");
+      throw new ConflictError("Já existe uma conta com este e-mail", "EMAIL_TAKEN");
     }
     throw err;
   }
 }
 
-export async function login(input: { email: string; password: string }, userAgent?: string) {
+export async function login(input: LoginInput, userAgent?: string) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   // Mesmo sem usuário, gasta o tempo de verificar uma senha: a resposta não revela se o e-mail existe
   const ok = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_HASH);
-  if (!user || !ok) throw new AuthError(401, "E-mail ou senha inválidos");
+  if (!user || !ok) throw new UnauthorizedError("E-mail ou senha inválidos", "INVALID_CREDENTIALS");
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  return { user: publicUser(user), session: await createSession(user.id, userAgent) };
+  return { user: toPublicUser(user), session: await createSession(user.id, userAgent) };
 }
 
 // ---------- Recuperação de senha ----------
@@ -160,23 +97,24 @@ export async function requestPasswordReset(email: string) {
   await sendPasswordResetCode(user.email, code);
 }
 
-const INVALID_CODE = "Código inválido ou expirado";
+// Mesma resposta para e-mail inexistente, código errado, vencido ou esgotado: não vaza qual foi o caso
+const invalidCode = () => new BadRequestError("Código inválido ou expirado", "INVALID_RESET_CODE");
 
-export async function resetPassword(input: { email: string; code: string; newPassword: string }) {
+export async function resetPassword(input: ResetPasswordInput) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
-  if (!user) throw new AuthError(400, INVALID_CODE);
+  if (!user) throw invalidCode();
 
   const reset = await prisma.passwordReset.findFirst({
     where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: config.resetMaxAttempts } },
     orderBy: { createdAt: "desc" },
   });
-  if (!reset) throw new AuthError(400, INVALID_CODE);
+  if (!reset) throw invalidCode();
 
   const expected = Buffer.from(reset.codeHash);
   const actual = Buffer.from(hmac(`${user.id}:${input.code}`));
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     await prisma.passwordReset.update({ where: { id: reset.id }, data: { attempts: { increment: 1 } } });
-    throw new AuthError(400, INVALID_CODE);
+    throw invalidCode();
   }
 
   const passwordHash = await hashPassword(input.newPassword);

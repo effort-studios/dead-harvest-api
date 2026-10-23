@@ -1,4 +1,4 @@
-import { config } from "../config";
+import { config } from "../../config";
 
 // Regras do jogo que o servidor precisa conhecer
 export const GRID_SIZE = 10 // cada terreno é 10x10

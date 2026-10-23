@@ -1,4 +1,5 @@
 import type { Request, RequestHandler } from "express";
+import { TooManyRequestsError } from "../errors/AppError";
 
 // Limite de requisições em janela fixa, na memória do processo (suficiente para uma API de uma instância).
 // `key` define quem está sendo contado; passou de `max` dentro da janela, 429.
@@ -11,7 +12,7 @@ export function rateLimit(options: { windowMs: number; max: number; key?: (req: 
     for (const [key, entry] of hits) if (entry.resetAt <= now) hits.delete(key);
   }, options.windowMs).unref();
 
-  return (req, res, next) => {
+  return (req, _res, next) => {
     const now = Date.now();
     const key = options.key?.(req) ?? req.ip ?? "unknown";
     const entry = hits.get(key);
@@ -20,10 +21,7 @@ export function rateLimit(options: { windowMs: number; max: number; key?: (req: 
       return next();
     }
     entry.count += 1;
-    if (entry.count > options.max) {
-      res.setHeader("Retry-After", Math.ceil((entry.resetAt - now) / 1000));
-      return res.status(429).json({ error: "Muitas tentativas. Aguarde um pouco e tente de novo." });
-    }
+    if (entry.count > options.max) return next(new TooManyRequestsError(Math.ceil((entry.resetAt - now) / 1000)));
     next();
   };
 }
