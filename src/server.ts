@@ -1,16 +1,19 @@
 import { app } from "./app";
 import { config } from "./config";
+import { startFarmerWorker, stopFarmerWorker } from "./modules/game/worker/farmer.worker";
 import { prisma } from "./shared/database/prisma";
 
 const server = app.listen(config.port, () => {
   console.log(`API rodando em http://localhost:${config.port}`);
 });
+startFarmerWorker();
 
 // Encerra sem cortar requisições em andamento: para de aceitar novas, espera as atuais e fecha o banco
 function shutdown(signal: string) {
   console.log(`${signal} recebido, encerrando...`);
   const force = setTimeout(() => process.exit(1), 10_000); // trava no meio do caminho: sai à força
   force.unref();
+  stopFarmerWorker();
   server.close(async () => {
     await prisma.$disconnect();
     process.exit(0);

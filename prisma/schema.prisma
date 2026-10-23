@@ -21,6 +21,15 @@ enum ItemKind {
   @@map("item_kind")
 }
 
+enum JobAction {
+  till
+  plant
+  harvest
+  harvest_tree
+
+  @@map("job_action")
+}
+
 enum TileState {
   tilled // arado; terra sem arar não tem linha (é a ausência de linha)
   planted
@@ -145,9 +154,16 @@ model Save {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  // Fazendeiro: onde está parado (célula do mapa, com fração) e quando começa o pedido da frente da fila.
+  // Enquanto a fila está vazia, farmerFreeAt é nulo.
+  farmerRow    Float     @default(4) @map("farmer_row")
+  farmerCol    Float     @default(-1.5) @map("farmer_col")
+  farmerFreeAt DateTime? @map("farmer_free_at") @db.Timestamptz(3)
+
   plots        Plot[]
   inventory    InventoryItem[]
   treeHarvests TreeHarvest[]
+  farmJobs     FarmJob[]
 
   @@map("saves")
 }
@@ -206,4 +222,27 @@ model TreeHarvest {
   @@id([saveId, treeId])
   @@index([treeId])
   @@map("tree_harvests")
+}
+
+// Fila de trabalho do fazendeiro: um pedido por tile (ou por árvore), executado na ordem de `seq` pelo worker
+// (modules/game/worker). Quando o pedido termina, a linha some. O front só enfileira e cancela.
+model FarmJob {
+  id        String    @id @default(uuid()) @db.Uuid
+  saveId    String    @map("save_id") @db.Uuid
+  save      Save      @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  seq       Int       @default(autoincrement())
+  action    JobAction
+  plotX     Int?      @map("plot_x")
+  plotY     Int?      @map("plot_y")
+  row       Int?      @db.SmallInt
+  col       Int?      @db.SmallInt
+  cropId    String?   @map("crop_id") // só no plantio
+  treeId    String?   @map("tree_id") // só na colheita de árvore
+  // Célula do mapa onde o fazendeiro precisa estar para agir (calculada ao enfileirar)
+  targetRow Float     @map("target_row")
+  targetCol Float     @map("target_col")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([saveId, seq])
+  @@map("farm_jobs")
 }

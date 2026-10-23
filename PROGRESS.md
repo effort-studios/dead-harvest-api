@@ -4,6 +4,8 @@
 - [x] 1. Express + Postgres (Docker) + Prisma, migration inicial e rotas funcionando
 - [x] 8. Estado salvo no servidor: cada ação do jogador é uma rota validada (não existe mais "salvar")
 
+| 2026-10-23 | **Fila do fazendeiro no servidor** (`farm_jobs`, `POST/DELETE /game/jobs`, worker de 1s em `modules/game/worker`). Arar/plantar/colher/colher árvore só existem como tarefas; as rotas diretas foram removidas | o front não controla as ações: se o jogador manda colher tudo e dá F5 (ou fecha a aba), a fila continua. Tempos por timestamp (`saves.farmer_free_at`, posição em `farmer_row/col`): cada tarefa = andar até o alvo (3,4 células/s) + gesto (550 ms), calculado no servidor e devolvido em `farmer` no estado. Ação conferida na hora em que o gesto termina; recusada pela regra = descartada. Cancelar: tudo ou uma tarefa; o que está andando para onde está. Limite 100 tarefas, sem duplicatas, tile mais perto primeiro |
+
 ## Em andamento
 Nada.
 

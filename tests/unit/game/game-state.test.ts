@@ -11,6 +11,10 @@ const save = (over: Partial<SaveRow> = {}): SaveRow => ({
   plots: [{ x: 0, y: 0, tiles: [] }],
   inventory: [],
   treeHarvests: [],
+  farmerRow: 4,
+  farmerCol: -1.5,
+  farmerFreeAt: null,
+  farmJobs: [],
   ...over,
 });
 
@@ -78,8 +82,25 @@ describe("regras de preço e save inicial", () => {
     const s = initialSave(T0);
     expect(s.plots).toEqual([{ x: 0, y: 0 }]);
     expect(s.inventory).toEqual(expect.arrayContaining([{ itemId: "corn", quantity: 3 }]));
-    const state = toGameState({ ...s, money: 100, plots: s.plots.map((p) => ({ ...p, tiles: [] })), treeHarvests: [] }, T0);
+    const state = toGameState({ ...s, money: 100, plots: s.plots.map((p) => ({ ...p, tiles: [] })), treeHarvests: [], farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, farmJobs: [] }, T0);
     expect(state.time).toBe(Math.round((DAY_LENGTH_SECONDS * 6) / 24)); // 6h da manhã
     expect(state.day).toBe(1);
+  });
+});
+
+describe("toGameState: fazendeiro", () => {
+  const job = (over = {}) => ({ id: "j1", action: "till" as const, plotX: 0, plotY: 0, row: 0, col: 0, treeId: null, targetRow: 4, targetCol: 3.5, ...over });
+
+  it("sem fila: só a posição", () => {
+    expect(toGameState(save(), T0).farmer).toEqual({ row: 4, col: -1.5, jobs: [] });
+  });
+
+  it("só o primeiro pedido tem horários, calculados a partir de farmerFreeAt", () => {
+    const { farmer } = toGameState(save({ farmerFreeAt: new Date(T0), farmJobs: [job(), job({ id: "j2" })] }), T0);
+    const [first, second] = farmer.jobs;
+    expect(first.startsAt).toBe(T0);
+    expect(first.arriveAt).toBeGreaterThanOrEqual(T0);
+    expect(first.endsAt).toBeGreaterThanOrEqual(first.arriveAt!);
+    expect(second.startsAt).toBeUndefined();
   });
 });

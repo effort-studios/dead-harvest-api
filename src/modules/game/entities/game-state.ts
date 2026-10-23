@@ -1,3 +1,4 @@
+import { schedule } from "../utils/farmer-timeline";
 import { DAY_LENGTH_SECONDS, GRID_SIZE } from "../utils/game.constants";
 
 export type TileView = { state: "soil" | "tilled" | "planted"; crop: string | null; growth: number };
@@ -10,7 +11,26 @@ export type GameState = {
   plots: { x: number; y: number; grid: TileView[][] }[];
   inventory: Record<string, number>;
   trees: Record<string, number>; // id da árvore -> ms da última colheita
+  farmer: FarmerView;
 };
+
+// O fazendeiro e a fila dele. (row, col) é onde ele está parado ANTES de começar jobs[0]; o cliente anima a
+// partir dos horários (ms, relógio do servidor) do primeiro pedido, que é o único que tem `startsAt`.
+export type JobView = {
+  id: string;
+  action: "till" | "plant" | "harvest" | "harvest_tree";
+  plotX: number | null;
+  plotY: number | null;
+  row: number | null;
+  col: number | null;
+  treeId: string | null;
+  targetRow: number; // célula do mapa onde ele precisa estar
+  targetCol: number;
+  startsAt?: number; // horários do pedido em andamento: começa a andar, chega e termina o gesto
+  arriveAt?: number;
+  endsAt?: number;
+};
+export type FarmerView = { row: number; col: number; jobs: JobView[] };
 
 // Save como o banco devolve (só o que o estado precisa)
 export type SaveRow = {
@@ -19,6 +39,10 @@ export type SaveRow = {
   plots: { x: number; y: number; tiles: { row: number; col: number; state: string; cropId: string | null; plantedAt: Date | null }[] }[];
   inventory: { itemId: string; quantity: number }[];
   treeHarvests: { treeId: string; harvestedAt: Date }[];
+  farmerRow: number;
+  farmerCol: number;
+  farmerFreeAt: Date | null;
+  farmJobs: (Omit<JobView, "startsAt" | "arriveAt" | "endsAt"> & { seq?: number })[];
 };
 
 const emptyGrid = (): TileView[][] =>
@@ -49,5 +73,17 @@ export function toGameState(save: SaveRow, now: number): GameState {
     }),
     inventory: Object.fromEntries(save.inventory.map((i) => [i.itemId, i.quantity])),
     trees: Object.fromEntries(save.treeHarvests.map((h) => [h.treeId, h.harvestedAt.getTime()])),
+    farmer: toFarmerView(save, now),
   };
+}
+
+function toFarmerView(save: SaveRow, now: number): FarmerView {
+  const at = { row: save.farmerRow, col: save.farmerCol };
+  const jobs: JobView[] = save.farmJobs.map(({ seq: _seq, ...job }) => job);
+  const head = jobs[0];
+  if (head) {
+    const s = schedule(at, { row: head.targetRow, col: head.targetCol }, save.farmerFreeAt?.getTime() ?? now);
+    Object.assign(head, s);
+  }
+  return { ...at, jobs };
 }

@@ -6,7 +6,7 @@ import { prisma } from "../../../shared/database/prisma";
 
 export type Tx = Prisma.TransactionClient;
 export type Db = Tx | typeof prisma;
-export type LockedSave = { id: string; money: number };
+export type LockedSave = { id: string; money: number; farmerRow: number; farmerCol: number; farmerFreeAt: Date | null };
 export type TilePos = { row: number; col: number };
 
 // ---------- Transação ----------
@@ -19,7 +19,7 @@ export const transaction = <T>(fn: (tx: Tx) => Promise<T>) => prisma.$transactio
 // Trava a linha do save (FOR UPDATE): ações ao mesmo tempo (cliques rápidos, duas abas, dois aparelhos)
 // entram em fila e cada uma vê o resultado da anterior.
 export async function lockSave(tx: Tx, userId: string): Promise<LockedSave | null> {
-  const [save] = await tx.$queryRaw<LockedSave[]>`SELECT id, money FROM saves WHERE user_id = ${userId}::uuid FOR UPDATE`;
+  const [save] = await tx.$queryRaw<LockedSave[]>`SELECT id, money, farmer_row AS "farmerRow", farmer_col AS "farmerCol", farmer_free_at AS "farmerFreeAt" FROM saves WHERE user_id = ${userId}::uuid FOR UPDATE`;
   return save ?? null;
 }
 
@@ -28,7 +28,7 @@ export async function lockSave(tx: Tx, userId: string): Promise<LockedSave | nul
 export const findSaveState = (db: Db, userId: string) =>
   db.save.findUnique({
     where: { userId },
-    include: { plots: { include: { tiles: true }, orderBy: [{ y: "asc" }, { x: "asc" }] }, inventory: true, treeHarvests: true },
+    include: { plots: { include: { tiles: true }, orderBy: [{ y: "asc" }, { x: "asc" }] }, inventory: true, treeHarvests: true, farmJobs: { orderBy: { seq: "asc" } } },
   });
 
 export async function findCatalogData() {
@@ -107,3 +107,25 @@ export const saveTreeHarvest = (tx: Tx, saveId: string, treeId: string, harveste
     create: { saveId, treeId, harvestedAt },
     update: { harvestedAt },
   });
+
+// ---------- Fila do fazendeiro ----------
+
+export type FarmJobRow = NonNullable<Awaited<ReturnType<typeof findJobs>>>[number];
+export type NewFarmJob = Omit<FarmJobRow, "id" | "seq" | "saveId" | "createdAt">;
+
+export const findJobs = (tx: Tx, saveId: string) => tx.farmJob.findMany({ where: { saveId }, orderBy: { seq: "asc" } });
+
+export const createJobs = (tx: Tx, saveId: string, jobs: NewFarmJob[]) =>
+  tx.farmJob.createMany({ data: jobs.map((j) => ({ ...j, saveId })) });
+
+export const deleteJobs = (tx: Tx, saveId: string, ids?: string[]) =>
+  tx.farmJob.deleteMany({ where: { saveId, ...(ids ? { id: { in: ids } } : {}) } });
+
+export const setFarmer = (tx: Tx, saveId: string, farmer: { row: number; col: number; freeAt: Date | null }) =>
+  tx.save.update({ where: { id: saveId }, data: { farmerRow: farmer.row, farmerCol: farmer.col, farmerFreeAt: farmer.freeAt } });
+
+// Jogadores com pedidos na fila: é por eles que o worker passa a cada rodada
+export async function userIdsWithJobs(): Promise<string[]> {
+  const rows = await prisma.farmJob.findMany({ distinct: ["saveId"], select: { save: { select: { userId: true } } } });
+  return rows.map((r) => r.save.userId);
+}

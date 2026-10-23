@@ -24,5 +24,6 @@ export async function createUser(tag = "u") {
 export const as = (cookie: string) => ({
   get: (path: string) => request(app).get(path).set("Cookie", cookie),
   post: (path: string, body: object = {}) => request(app).post(path).set("Cookie", cookie).send(body),
+  delete: (path: string) => request(app).delete(path).set("Cookie", cookie),
   patch: (path: string, body: object = {}) => request(app).patch(path).set("Cookie", cookie).send(body),
 });

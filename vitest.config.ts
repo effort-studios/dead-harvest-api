@@ -8,6 +8,8 @@ const env = {
   WEB_URL: "http://localhost:5173",
   AUTH_SECRET: "segredo-de-teste-com-mais-de-32-caracteres",
   DAY_LENGTH_SECONDS: "1440",
+  FARMER_WALK_SPEED: "1000000", // fila do fazendeiro anda na hora
+  FARMER_ACT_MS: "0",
 };
 
 export default defineConfig({

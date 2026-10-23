@@ -67,13 +67,12 @@ Sessão por cookie httpOnly (`dh_session`): o front chama com `credentials: 'inc
 | POST | `/auth/forgot-password` / `/auth/reset-password` | código por e-mail / nova senha com o código |
 | GET | `/game/catalog` | regras do jogo (plantas, frutas, árvores, preço do terreno, duração do dia); público |
 | GET | `/game/state` | estado do jogador logado |
-| POST | `/game/till` | `{ x, y, tiles: [{ row, col }] }`: ara os tiles que ainda são terra |
-| POST | `/game/plant` | `{ x, y, tiles, cropId }`: planta nos tiles arados, na ordem, enquanto houver semente |
-| POST | `/game/harvest` | `{ x, y, tiles }`: colhe as plantas maduras e paga a colheita |
+| POST | `/game/jobs` | Enfileira trabalho do fazendeiro: `{ action: "till"\|"harvest", x, y, tiles }`, `{ action: "plant", x, y, tiles, cropId }` ou `{ action: "harvest_tree", treeId }`. Vira uma tarefa por tile (mais perto primeiro, até 100 na fila); o servidor anda e executa uma de cada vez, mesmo com o jogo fechado. 422 `FARM_QUEUE_FULL` se estourar |
+| DELETE | `/game/jobs` | cancela a fila toda (ele para onde está) |
+| DELETE | `/game/jobs/:jobId` | cancela uma tarefa (404 `JOB_NOT_FOUND` se não for do jogador) |
 | POST | `/game/seeds/buy` | `{ cropId, quantity }`: compra o que o dinheiro der (até `quantity`) |
 | POST | `/game/fruits/sell` | `{ itemId, quantity? }`: vende (todas, sem `quantity`) |
 | POST | `/game/plots/buy` | `{ x, y }`: compra um terreno colado a um seu |
-| POST | `/game/trees/:treeId/harvest` | colhe as frutas de uma árvore, se já repôs |
 
 **O servidor é a fonte da verdade.** O cliente só diz o que quer fazer; preço, tempo e se pode são decididos
 em [game-actions.service.ts](src/modules/game/services/game-actions.service.ts), com o catálogo do banco. Cada ação
