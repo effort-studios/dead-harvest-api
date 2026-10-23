@@ -31,6 +31,10 @@ export const config = {
     if (value !== "lax" && value !== "strict" && value !== "none") throw new Error("COOKIE_SAMESITE precisa ser lax, strict ou none");
     return value;
   })(),
+  // Fazendeiro: velocidade (células por segundo) e duração do gesto (ms). Os tempos de cada pedido da fila
+  // saem destes valores; os testes usam 0 de gesto e velocidade enorme para a fila andar na hora
+  farmerWalkSpeed: Number(process.env.FARMER_WALK_SPEED ?? 3.4),
+  farmerActMs: Number(process.env.FARMER_ACT_MS ?? 550),
   sessionDays: 30, // duração do login
   resetCodeMinutes: 15, // validade do código de redefinição
   resetMaxAttempts: 5, // erros de código antes de o pedido ser invalidado

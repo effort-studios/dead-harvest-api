@@ -9,7 +9,7 @@ import { plotPrice } from "../../../src/modules/game/utils/game.constants";
 
 const repo = vi.mocked(gameRepository);
 const tx = { tx: true } as never;
-const SAVE = { id: "save-1", money: 500 };
+const SAVE = { id: "save-1", money: 500, farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null };
 const T0 = Date.UTC(2026, 0, 1);
 
 const tile = (row: number, col: number, over: Record<string, unknown> = {}) => ({ row, col, state: "tilled", cropId: null, plantedAt: null, crop: null, ...over });
@@ -17,10 +17,10 @@ const plot = (tiles: ReturnType<typeof tile>[] = []) => ({ id: "plot-1", x: 0, y
 const corn = { id: "corn", name: "Milho", seedItemId: "corn-seed", growSeconds: 60, harvestPrice: 40 };
 
 // O save vem do repositório falso; o estado final (resposta da ação) é só um save vazio
-function setup(save: typeof SAVE | null = SAVE) {
+function setup(save: Pick<typeof SAVE, "id" | "money"> | null = SAVE) {
   repo.transaction.mockImplementation(((fn: (t: never) => unknown) => fn(tx)) as never);
-  repo.lockSave.mockResolvedValue(save);
-  repo.findSaveState.mockResolvedValue({ gameStartedAt: new Date(T0), money: 0, plots: [], inventory: [], treeHarvests: [] } as never);
+  repo.lockSave.mockResolvedValue(save as never);
+  repo.findSaveState.mockResolvedValue({ gameStartedAt: new Date(T0), money: 0, plots: [], inventory: [], treeHarvests: [], farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, farmJobs: [] } as never);
 }
 
 beforeEach(() => {

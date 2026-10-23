@@ -34,7 +34,7 @@ describe("respostas padrão da API", () => {
   it("JSON quebrado em rota pública e em rota protegida: 400 INVALID_JSON (era 500)", async () => {
     const { cookie } = await createUser("badjson");
     const pub = await request(app).post("/auth/login").set("Content-Type", "application/json").send("{quebrado");
-    const priv = await request(app).post("/game/till").set("Cookie", cookie).set("Content-Type", "application/json").send('{"x": ');
+    const priv = await request(app).post("/game/jobs").set("Cookie", cookie).set("Content-Type", "application/json").send('{"x": ');
     for (const res of [pub, priv]) {
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({ code: "INVALID_JSON", error: "O corpo da requisição não é um JSON válido" });
@@ -78,7 +78,7 @@ describe("falhas de infraestrutura", () => {
     const { cookie } = await createUser("p2034");
     vi.spyOn(prisma, "$transaction").mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("write conflict", { code: "P2034", clientVersion: "test" }));
 
-    const res = await as(cookie).post("/game/till", { x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
+    const res = await as(cookie).post("/game/jobs", { action: "till", x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
     expect(res.status).toBe(503);
     expect(res.headers["retry-after"]).toBe("1");
   });
@@ -101,22 +101,23 @@ describe("falhas de infraestrutura", () => {
     expect((await request(app).get("/health")).status).toBe(200);
   });
 
-  it("falha no meio de uma ação do jogo desfaz tudo: o tile plantado e o inventário voltam ao que eram", async () => {
+  it("falha no meio de uma tarefa do fazendeiro desfaz tudo: o tile plantado, o inventário e a fila voltam ao que eram", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { cookie, user } = await createUser("rollback");
     const api = as(cookie);
-    await api.post("/game/till", { x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
+    await api.post("/game/jobs", { action: "till", x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
     const before = (await api.get("/game/state")).body;
 
     // no plantio, o tile é gravado primeiro e a semente é gasta depois: quebra o segundo passo
     vi.spyOn(gameRepository, "removeItem").mockRejectedValueOnce(new Error("explodiu no meio"));
-    const res = await api.post("/game/plant", { x: 0, y: 0, cropId: "corn", tiles: [{ row: 0, col: 0 }] });
+    const res = await api.post("/game/jobs", { action: "plant", x: 0, y: 0, cropId: "corn", tiles: [{ row: 0, col: 0 }] });
     expect(res.status).toBe(500);
 
     const after = (await api.get("/game/state")).body;
     expect(after.plots[0].grid[0][0].state).toBe("tilled"); // não ficou plantado sem gastar semente
     expect(after.inventory).toEqual(before.inventory);
     expect(after.money).toBe(before.money);
+    expect(after.farmer.jobs).toEqual([]); // nem a tarefa ficou na fila
     expect(await prisma.tile.count({ where: { state: "planted", plot: { save: { userId: user.id } } } })).toBe(0);
   });
 });

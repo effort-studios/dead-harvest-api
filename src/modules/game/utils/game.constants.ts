@@ -11,3 +11,6 @@ export const PLOT_BASE_PRICE = 1000
 export const PLOT_PRICE_FACTOR = 1.5
 
 export const plotPrice = (ownedPlots: number) => Math.round(PLOT_BASE_PRICE * PLOT_PRICE_FACTOR ** (ownedPlots - 1))
+
+// Fila do fazendeiro: no máximo este tanto de pedidos pendentes por jogador
+export const MAX_FARM_JOBS = 100

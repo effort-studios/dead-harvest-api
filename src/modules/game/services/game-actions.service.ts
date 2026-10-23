@@ -14,7 +14,9 @@ import { loadState } from "./game-state.service";
 const tileKey = (t: { row: number; col: number }) => `${t.row},${t.col}`;
 
 // Roda a ação com o save do jogador travado, numa transação: se lançar, nada é gravado. Devolve o estado novo.
-async function act(userId: string, action: (tx: repo.Tx, save: repo.LockedSave, now: number) => Promise<void>): Promise<GameState> {
+type Action = (tx: repo.Tx, save: repo.LockedSave, now: number) => Promise<void>;
+
+async function act(userId: string, action: Action): Promise<GameState> {
   return repo.transaction(async (tx) => {
     const now = Date.now();
     const save = await repo.lockSave(tx, userId);
@@ -31,18 +33,20 @@ async function requirePlot(tx: repo.Tx, saveId: string, x: number, y: number) {
 }
 
 // Ara os tiles que ainda são terra (os outros ficam como estão)
-export const till = (userId: string, input: TilesInput) =>
-  act(userId, async (tx, save) => {
+// Cada ação de tile/árvore é um `Action` solto (`xxxAction`), para o fazendeiro (farmer.service) rodar na hora em
+// que chega ao alvo; as funções exportadas abaixo só embrulham no `act`.
+export const tillAction = (input: TilesInput): Action =>
+  async (tx, save) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const used = new Set(plot.tiles.map(tileKey));
     const soil = input.tiles.filter((t) => !used.has(tileKey(t)));
     if (soil.length === 0) throw new ConflictError("Esses tiles já estão arados", "TILES_ALREADY_TILLED");
     await repo.createTilledTiles(tx, plot.id, soil);
-  });
+  };
 
 // Planta nos tiles arados, na ordem pedida, enquanto houver semente
-export const plant = (userId: string, input: TilesInput & { cropId: string }) =>
-  act(userId, async (tx, save, now) => {
+export const plantAction = (input: TilesInput & { cropId: string }): Action =>
+  async (tx, save, now) => {
     const crop = await repo.findCrop(tx, input.cropId);
     if (!crop) throw new BadRequestError("Planta desconhecida", "UNKNOWN_CROP");
     const plot = await requirePlot(tx, save.id, input.x, input.y);
@@ -55,11 +59,11 @@ export const plant = (userId: string, input: TilesInput & { cropId: string }) =>
     const chosen = tilled.slice(0, have);
     await repo.plantTiles(tx, plot.id, chosen, crop.id, new Date(now));
     await repo.removeItem(tx, save.id, crop.seedItemId, chosen.length, have);
-  });
+  };
 
 // Colhe os tiles com planta madura (crescimento conferido pelo relógio do servidor)
-export const harvest = (userId: string, input: TilesInput) =>
-  act(userId, async (tx, save, now) => {
+export const harvestAction = (input: TilesInput): Action =>
+  async (tx, save, now) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const byKey = new Map(plot.tiles.map((t) => [tileKey(t), t]));
     const ripe = input.tiles.flatMap((pos) => {
@@ -71,7 +75,7 @@ export const harvest = (userId: string, input: TilesInput) =>
 
     await repo.clearTiles(tx, plot.id, ripe);
     await repo.changeMoney(tx, save.id, ripe.reduce((sum, t) => sum + t.price, 0));
-  });
+  };
 
 // Compra sementes; se o dinheiro não dá para todas, compra as que dá
 export const buySeed = (userId: string, input: { cropId: string; quantity: number }) =>
@@ -111,8 +115,8 @@ export const buyPlot = (userId: string, input: { x: number; y: number }) =>
   });
 
 // Colhe as frutas de uma árvore; ela só repõe depois do tempo de rebrota
-export const harvestTree = (userId: string, treeId: string) =>
-  act(userId, async (tx, save, now) => {
+export const harvestTreeAction = (treeId: string): Action =>
+  async (tx, save, now) => {
     const tree = await repo.findTree(tx, treeId);
     if (!tree) throw new NotFoundError("Árvore não encontrada", "TREE_NOT_FOUND");
     const last = await repo.findTreeHarvest(tx, save.id, treeId);
@@ -121,4 +125,9 @@ export const harvestTree = (userId: string, treeId: string) =>
     }
     await repo.saveTreeHarvest(tx, save.id, treeId, new Date(now));
     await repo.addItem(tx, save.id, tree.fruitItemId, tree.fruitsPerHarvest);
-  });
+  };
+
+export const till = (userId: string, input: TilesInput) => act(userId, tillAction(input));
+export const plant = (userId: string, input: TilesInput & { cropId: string }) => act(userId, plantAction(input));
+export const harvest = (userId: string, input: TilesInput) => act(userId, harvestAction(input));
+export const harvestTree = (userId: string, treeId: string) => act(userId, harvestTreeAction(treeId));

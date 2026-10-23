@@ -30,3 +30,14 @@ export const buyPlotSchema = z.object({ x: z.number().int().min(-50).max(50), y:
 export type TilesInput = z.infer<typeof tilesSchema>;
 
 export const treeParams = z.object({ treeId: id });
+
+// Pedido para o fazendeiro: o cliente diz O QUE fazer e em quais tiles; quem decide a ordem, o tempo e se
+// dá certo é o servidor (services/farmer.service.ts)
+export const enqueueSchema = z.discriminatedUnion("action", [
+  tilesSchema.extend({ action: z.enum(["till", "harvest"]) }),
+  plantSchema.extend({ action: z.literal("plant") }),
+  z.object({ action: z.literal("harvest_tree"), treeId: id }),
+]);
+export type EnqueueInput = z.infer<typeof enqueueSchema>;
+
+export const jobParams = z.object({ jobId: z.string().uuid() });
