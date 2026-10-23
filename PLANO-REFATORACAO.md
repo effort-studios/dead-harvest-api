@@ -2,6 +2,8 @@
 
 Branch: `refactor/domains-and-errors` (a `main` não é tocada).
 
+**Status: concluído.** 219 testes passando, build e typecheck limpos.
+
 Decisões já tomadas:
 
 - Formato de erro **compatível com o front** (`error` continua string; entram `code`, `details`, `requestId`).
@@ -110,12 +112,10 @@ Estado:
 | Fase | Conteúdo | Estado |
 |---|---|---|
 | 0 | baseline do comportamento atual (roteiro de smoke) | feito |
-| 1 | `shared/` (erros, http, database) + `app.ts` | escrito, falta commit |
-| 2 | testes: infraestrutura + testes unitários do `shared/` | a fazer |
-| 3 | módulo `users` | a fazer |
-| 4 | módulo `auth` | a fazer |
-| 5 | módulo `game` | a fazer |
-| 6 | `health`, remoção do código antigo, README, PROGRESS.md | a fazer |
+| 1 | `shared/` (erros, http, database) + `app.ts` | feito |
+| 2 | testes: infraestrutura + unitários do `shared/` | feito |
+| 3–5 | módulos `users` + `auth` + `game` (feitos juntos: `users` depende do `requireAuth`) + testes deles | feito |
+| 6 | `health`, remoção do código antigo, README, PROGRESS.md | feito |
 
 ## 4. Testes (Vitest + supertest)
 
