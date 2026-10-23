@@ -1,21 +1,28 @@
 import cors from "cors";
-import express, { ErrorRequestHandler } from "express";
+import express from "express";
+import { z } from "zod";
 import { config } from "./config";
-import { authRouter } from "./routes/auth";
-import { healthRouter } from "./routes/health";
-import { gameRouter } from "./routes/game";
+import { authModule } from "./modules/auth/auth.module";
+import { gameModule } from "./modules/game/game.module";
+import { healthModule } from "./modules/health/health.module";
+import { usersModule } from "./modules/users/users.module";
+import { errorHandler } from "./shared/http/errorHandler";
+import { notFound } from "./shared/http/notFound";
+import { requestId } from "./shared/http/requestId";
+
+z.config(z.locales.pt()); // mensagens de validação do zod em português (o front mostra ao jogador)
 
 export const app = express();
 
+app.use(requestId);
 app.use(cors({ origin: config.webOrigins, credentials: true })); // só o front pode chamar a API pelo navegador (credentials: o cookie de sessão vai junto)
 app.use(express.json({ limit: "100kb" }));
 
-app.use(healthRouter);
-app.use(authRouter);
-app.use(gameRouter);
+app.use(healthModule);
+app.use(authModule);
+app.use(usersModule);
+app.use(gameModule);
 
-const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: "Erro interno" });
-};
+// Sempre por último: rota inexistente (404) e a saída única de erros
+app.use(notFound);
 app.use(errorHandler);

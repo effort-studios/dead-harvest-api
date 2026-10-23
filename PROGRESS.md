@@ -27,6 +27,10 @@ Nada.
 | 2026-10-22 | Tile só existe se arado ou plantado | terra sem arar é a ausência de linha: menos linhas |
 | 2026-10-22 | **Ações no servidor** (`/game/till`, `plant`, `harvest`, `seeds/buy`, `fruits/sell`, `plots/buy`, `trees/:id/harvest`) no lugar do `PUT /saves/me`; cada uma trava o save (`FOR UPDATE`) e devolve o estado inteiro | o front nunca é a fonte da verdade de nada: preços, tempos, maturidade e dinheiro são conferidos aqui; a trava impede gastar o mesmo dinheiro duas vezes com pedidos simultâneos |
 | 2026-10-22 | Catálogo público em `GET /game/catalog` | o front mostra preços e tempos e desenha as árvores com os números do banco, sem cópia própria |
+| 2026-10-22 | Código por domínio (`src/modules/<nome>` com controllers/dto/entities/repositories/services/utils) | padrão do dono do projeto; o Prisma só nos repositories deixa os services testáveis sem banco |
+| 2026-10-22 | Erros tipados (`AppError`) e um `errorHandler` único: `{ error, code, details?, requestId }` | status certo em cada situação; `error` continua texto, então o front não muda |
+| 2026-10-22 | Regra do jogo recusada passa de 409 para **422** (409 só para "já está nesse estado") | semântica correta; o front só depende de 401 e de `body.error` |
+| 2026-10-22 | Testes com Vitest + supertest; integração em banco separado `<banco>_test` | não tocar nos dados de desenvolvimento |
 
 ## Problemas conhecidos
 - Sem limite de taxa nas rotas do jogo (só nas de login).
