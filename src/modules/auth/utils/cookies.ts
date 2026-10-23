@@ -18,11 +18,19 @@ export function readCookie(req: Request, name: string): string | undefined {
 }
 
 // httpOnly: o JavaScript da página não lê o cookie (um XSS não rouba a sessão).
-// SameSite=Lax: o navegador não manda o cookie em requisições vindas de outros sites.
+// SameSite=Lax (padrão): o navegador não manda o cookie em requisições vindas de outros sites.
+// "none" (COOKIE_SAMESITE) é para front e API em sites diferentes e obriga Secure.
+const baseOptions = () => ({
+  httpOnly: true,
+  sameSite: config.cookieSameSite,
+  secure: config.isProduction || config.cookieSameSite === "none",
+  path: "/",
+});
+
 export function setSessionCookie(res: Response, token: string, expiresAt: Date) {
-  res.cookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: config.isProduction, expires: expiresAt, path: "/" });
+  res.cookie(SESSION_COOKIE, token, { ...baseOptions(), expires: expiresAt });
 }
 
 export function clearSessionCookie(res: Response) {
-  res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: "lax", secure: config.isProduction, path: "/" });
+  res.clearCookie(SESSION_COOKIE, baseOptions());
 }

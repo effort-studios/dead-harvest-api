@@ -14,6 +14,8 @@ z.config(z.locales.pt()); // mensagens de validação do zod em português (o fr
 
 export const app = express();
 
+app.set("trust proxy", 1); // atrás do proxy da Railway: req.ip passa a ser o do jogador (rate limit por IP)
+
 app.use(requestId);
 app.use(cors({ origin: config.webOrigins, credentials: true })); // só o front pode chamar a API pelo navegador (credentials: o cookie de sessão vai junto)
 app.use(express.json({ limit: "100kb" }));

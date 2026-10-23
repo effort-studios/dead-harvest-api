@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 
 // Falha logo na inicialização se faltar alguma variável, em vez de dar erro estranho depois
 function required(name: string): string {
@@ -23,6 +23,13 @@ export const config = {
     const seconds = Number(process.env.DAY_LENGTH_SECONDS ?? 1440);
     if (!Number.isInteger(seconds) || seconds < 60) throw new Error("DAY_LENGTH_SECONDS precisa ser um inteiro >= 60");
     return seconds;
+  })(),
+  // SameSite do cookie de sessão. "lax" serve quando front e API estão no mesmo site (domínio próprio);
+  // com front e API em subdomínios diferentes de up.railway.app use "none" (exige HTTPS)
+  cookieSameSite: ((): "lax" | "strict" | "none" => {
+    const value = process.env.COOKIE_SAMESITE ?? "lax";
+    if (value !== "lax" && value !== "strict" && value !== "none") throw new Error("COOKIE_SAMESITE precisa ser lax, strict ou none");
+    return value;
   })(),
   sessionDays: 30, // duração do login
   resetCodeMinutes: 15, // validade do código de redefinição
