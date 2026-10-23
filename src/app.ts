@@ -2,10 +2,10 @@ import cors from "cors";
 import express from "express";
 import { z } from "zod";
 import { config } from "./config";
-import { authRouter } from "./modules/auth/auth.routes";
-import { gameRouter } from "./modules/game/game.routes";
-import { healthRouter } from "./modules/health/health.routes";
-import { usersRouter } from "./modules/users/users.routes";
+import { authModule } from "./modules/auth/auth.module";
+import { gameModule } from "./modules/game/game.module";
+import { healthModule } from "./modules/health/health.module";
+import { usersModule } from "./modules/users/users.module";
 import { errorHandler } from "./shared/http/errorHandler";
 import { notFound } from "./shared/http/notFound";
 import { requestId } from "./shared/http/requestId";
@@ -18,10 +18,10 @@ app.use(requestId);
 app.use(cors({ origin: config.webOrigins, credentials: true })); // só o front pode chamar a API pelo navegador (credentials: o cookie de sessão vai junto)
 app.use(express.json({ limit: "100kb" }));
 
-app.use(healthRouter);
-app.use(authRouter);
-app.use(usersRouter);
-app.use(gameRouter);
+app.use(healthModule);
+app.use(authModule);
+app.use(usersModule);
+app.use(gameModule);
 
 // Sempre por último: rota inexistente (404) e a saída única de erros
 app.use(notFound);
