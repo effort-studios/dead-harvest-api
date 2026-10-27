@@ -83,7 +83,7 @@ describe("GET /game/state", () => {
     expect(s.plots[0].grid.flat().every((t: { state: string }) => t.state === "soil")).toBe(true);
     expect(s.inventory).toEqual({ corn: 3, tomato: 3, pumpkin: 2 });
     expect(s.money).toBe(100);
-    expect(s.day).toBe(1);
+    expect(s.day).toBeGreaterThanOrEqual(1); // o dia é do mundo, não do save
     expect(s.serverTime).toBeGreaterThan(0);
   });
 

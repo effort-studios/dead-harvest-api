@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { toGameState, type SaveRow } from "../../../src/modules/game/entities/game-state";
-import { barnExpandPrice, DAY_LENGTH_SECONDS, GRID_SIZE, plotPrice } from "../../../src/modules/game/utils/game.constants";
+import { barnExpandPrice, DAY_LENGTH_SECONDS, GRID_SIZE, plotPrice, WORLD_EPOCH_MS } from "../../../src/modules/game/utils/game.constants";
 import { initialSave } from "../../../src/modules/game/utils/initial-save";
 
-const T0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+const T0 = WORLD_EPOCH_MS;
 
 const save = (over: Partial<SaveRow> = {}): SaveRow => ({
   gameStartedAt: new Date(T0),
@@ -32,6 +32,13 @@ describe("toGameState", () => {
     expect(toGameState(save(), T0 + 90_000)).toMatchObject({ day: 1, time: 90 });
     expect(toGameState(save(), T0 + DAY_LENGTH_SECONDS * 1000)).toMatchObject({ day: 2, time: 0 });
     expect(toGameState(save(), T0 + (DAY_LENGTH_SECONDS * 3 + 5) * 1000)).toMatchObject({ day: 4, time: 5 });
+  });
+
+  it("o relógio é do mundo: saves criados em momentos diferentes mostram a mesma hora", () => {
+    const now = T0 + 777_000;
+    const a = toGameState(save({ gameStartedAt: new Date(T0) }), now);
+    const b = toGameState(save({ gameStartedAt: new Date(T0 + 500_000) }), now);
+    expect([b.day, b.time]).toEqual([a.day, a.time]);
   });
 
   it("relógio do servidor antes do início do jogo não fica negativo", () => {
@@ -139,12 +146,12 @@ describe("regras de preço e save inicial", () => {
     expect(plotPrice(3)).toBe(2250);
   });
 
-  it("jogo novo: um terreno em 0,0, sementes e relógio começando no início da manhã", () => {
+  it("jogo novo: um terreno em 0,0, sementes ", () => {
     const s = initialSave(T0);
     expect(s.plots).toEqual([{ x: 0, y: 0 }]);
     expect(s.inventory).toEqual(expect.arrayContaining([{ itemId: "corn", quantity: 3 }]));
     const state = toGameState({ ...s, money: 100, plots: s.plots.map((p) => ({ ...p, tiles: [] })), treeHarvests: [], farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, farmJobs: [], machines: [], barnCapacity: 0, barnRow: null, barnCol: null, canCharges: null, wellRow: null, wellCol: null, animals: [] }, T0);
-    expect(state.time).toBe(Math.round((DAY_LENGTH_SECONDS * 6) / 24)); // 6h da manhã
+    expect(state.time).toBe(0);
     expect(state.day).toBe(1);
   });
 });

@@ -16,7 +16,7 @@ npm run dev                 # API em http://localhost:3333
 ```
 
 ## Variáveis de ambiente
-Veja o `.env.example`. As principais: `DATABASE_URL`, `PORT`, `WEB_URL` (origens liberadas no CORS, separadas por vírgula), `AUTH_SECRET` (mín. 32 caracteres), `DAY_LENGTH_SECONDS` (duração do dia do jogo), `COOKIE_SAMESITE` (`none` só com front e API em subdomínios diferentes, com HTTPS) e, opcionais, `FARMER_WALK_SPEED` (células por segundo, padrão 3.4) e `FARMER_ACT_MS` (duração do gesto de arar/plantar/colher, padrão 550).
+Veja o `.env.example`. As principais: `DATABASE_URL`, `PORT`, `WEB_URL` (origens liberadas no CORS, separadas por vírgula), `AUTH_SECRET` (mín. 32 caracteres), `DAY_LENGTH_SECONDS` (duração do dia do jogo), `WORLD_EPOCH` (início do mundo: o dia e a hora do jogo são os mesmos para todos os jogadores), `COOKIE_SAMESITE` (`none` só com front e API em subdomínios diferentes, com HTTPS) e, opcionais, `FARMER_WALK_SPEED` (células por segundo, padrão 3.4) e `FARMER_ACT_MS` (duração do gesto de arar/plantar/colher, padrão 550).
 
 ## Scripts
 | Comando | O que faz |

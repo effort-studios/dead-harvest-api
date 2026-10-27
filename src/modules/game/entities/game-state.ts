@@ -1,5 +1,5 @@
 import { schedule } from "../utils/farmer-timeline";
-import { DAY_LENGTH_SECONDS, GRID_SIZE } from "../utils/game.constants";
+import { DAY_LENGTH_SECONDS, GRID_SIZE, WORLD_EPOCH_MS } from "../utils/game.constants";
 import { growthSeconds } from "../utils/growth";
 
 // growth: segundos de crescimento (já contando adubo e água); fertilized/watered: tile adubado/regado
@@ -75,9 +75,10 @@ const emptyGrid = (): TileView[][] =>
 const seconds = (ms: number) => Math.max(0, Math.floor(ms / 1000));
 
 // O servidor é a fonte da verdade: o cliente só recebe este estado; o que ele mostra entre uma resposta
-// e outra é só previsão. Dia e hora do jogo vêm do relógio do servidor (`now`).
+// e outra é só previsão. Dia e hora do jogo vêm do relógio do servidor (`now`)
+// contado desde o início do mundo, então são os mesmos para todos os jogadores.
 export function toGameState(save: SaveRow, now: number): GameState {
-  const elapsed = seconds(now - save.gameStartedAt.getTime());
+  const elapsed = seconds(now - WORLD_EPOCH_MS);
   return {
     serverTime: now,
     day: Math.floor(elapsed / DAY_LENGTH_SECONDS) + 1,

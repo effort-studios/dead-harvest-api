@@ -24,6 +24,12 @@ export const config = {
     if (!Number.isInteger(seconds) || seconds < 60) throw new Error("DAY_LENGTH_SECONDS precisa ser um inteiro >= 60");
     return seconds;
   })(),
+  // instante em que o dia 1 do mundo começou (meia-noite): o relógio do jogo é o mesmo para todos os jogadores
+  worldEpoch: (() => {
+    const ms = Date.parse(process.env.WORLD_EPOCH ?? "2026-10-27T00:00:00Z");
+    if (Number.isNaN(ms)) throw new Error("WORLD_EPOCH precisa ser uma data ISO válida");
+    return ms;
+  })(),
   // SameSite do cookie de sessão. "lax" serve quando front e API estão no mesmo site (domínio próprio);
   // com front e API em subdomínios diferentes de up.railway.app use "none" (exige HTTPS)
   cookieSameSite: ((): "lax" | "strict" | "none" => {
