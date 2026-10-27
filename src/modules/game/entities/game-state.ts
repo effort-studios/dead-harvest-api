@@ -28,7 +28,7 @@ export type GameState = {
 };
 
 // O fazendeiro e a fila dele. (row, col) é onde ele está parado ANTES de começar jobs[0]; o cliente anima a
-// partir dos horários (ms, relógio do servidor) do primeiro pedido, que é o único que tem `startsAt`.
+// partir dos horários (ms, relógio do servidor) de cada pedido: um começa quando o anterior termina.
 export type JobView = {
   id: string;
   action: "till" | "untill" | "plant" | "harvest" | "harvest_tree" | "fertilize" | "water" | "collect_machine" | "collect_barn" | "refill_can" | "move";
@@ -40,9 +40,9 @@ export type JobView = {
   machineId: string | null;
   targetRow: number; // célula do mapa onde ele precisa estar
   targetCol: number;
-  startsAt?: number; // horários do pedido em andamento: começa a andar, chega e termina o gesto
-  arriveAt?: number;
-  endsAt?: number;
+  startsAt: number; // horários do pedido: começa a andar, chega e termina o gesto
+  arriveAt: number;
+  endsAt: number;
 };
 export type FarmerView = { row: number; col: number; jobs: JobView[] };
 
@@ -115,11 +115,16 @@ export function toGameState(save: SaveRow, now: number): GameState {
 
 function toFarmerView(save: SaveRow, now: number): FarmerView {
   const at = { row: save.farmerRow, col: save.farmerCol };
-  const jobs: JobView[] = save.farmJobs.map(({ seq: _seq, ...job }) => job);
-  const head = jobs[0];
-  if (head) {
-    const s = schedule(at, { row: head.targetRow, col: head.targetCol }, save.farmerFreeAt?.getTime() ?? now);
-    Object.assign(head, s);
-  }
+  // a fila inteira ganha horários, encadeados (cada pedido começa quando o anterior termina): a tela anima o
+  // trajeto todo sem esperar o servidor responder entre um tile e outro
+  let from = at;
+  let startsAt = save.farmerFreeAt?.getTime() ?? now;
+  const jobs: JobView[] = save.farmJobs.map(({ seq: _seq, ...job }) => {
+    const to = { row: job.targetRow, col: job.targetCol };
+    const s = schedule(from, to, startsAt);
+    from = to;
+    startsAt = s.endsAt;
+    return { ...job, ...s };
+  });
   return { ...at, jobs };
 }

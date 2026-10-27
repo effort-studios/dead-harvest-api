@@ -49,7 +49,8 @@ describe("fila do fazendeiro com tempo", () => {
     expect(first).toMatchObject({ action: "till", row: 0, col: 0, startsAt: T });
     expect(first.arriveAt).toBe(T + 4272); // hypot(4, 1.5) células a 1 célula/s
     expect(first.endsAt).toBe(first.arriveAt + 1000);
-    expect(second.startsAt).toBeUndefined();
+    expect(second.startsAt).toBe(first.endsAt); // os horários da fila são encadeados: a tela anima tudo sem esperar
+    expect(second.arriveAt).toBe(first.endsAt + 1000); // 1 célula a 1 célula/s
     expect(await p.tilled()).toBe(0);
 
     at(first.endsAt - T - 1); // ainda no meio do gesto

@@ -156,12 +156,12 @@ describe("toGameState: fazendeiro", () => {
     expect(toGameState(save(), T0).farmer).toEqual({ row: 4, col: -1.5, jobs: [] });
   });
 
-  it("só o primeiro pedido tem horários, calculados a partir de farmerFreeAt", () => {
+  it("todos os pedidos têm horários, encadeados a partir de farmerFreeAt", () => {
     const { farmer } = toGameState(save({ farmerFreeAt: new Date(T0), farmJobs: [job(), job({ id: "j2" })] }), T0);
     const [first, second] = farmer.jobs;
     expect(first.startsAt).toBe(T0);
     expect(first.arriveAt).toBeGreaterThanOrEqual(T0);
     expect(first.endsAt).toBeGreaterThanOrEqual(first.arriveAt!);
-    expect(second.startsAt).toBeUndefined();
+    expect(second.startsAt).toBe(first.endsAt); // o 2º começa quando o 1º termina
   });
 });
