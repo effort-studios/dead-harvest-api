@@ -181,12 +181,12 @@ describe("fila do fazendeiro com tempo", () => {
     const corn = (await p.api.get("/game/catalog")).body.crops.find((c: { id: string }) => c.id === "corn");
     const plot = await prisma.plot.findFirstOrThrow({ where: { save: { userId: p.user.id } } });
     // planta ainda verde (falta 1s depois do pedido, mas ele leva ~4s para chegar)
-    await prisma.tile.create({ data: { plotId: plot.id, row: 0, col: 0, state: "planted", cropId: "corn", plantedAt: new Date(T - (corn.growSeconds - 1) * 1000) } });
+    await prisma.tile.create({ data: { plotId: plot.id, row: 0, col: 0, state: "planted", cropId: "corn", plantedAt: new Date(T - (corn.growSeconds - 1) * 1000), growthAt: new Date(T - (corn.growSeconds - 1) * 1000) } });
 
     const queued = await p.api.post("/game/jobs", { action: "harvest", x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
-    expect(queued.body.money).toBe(100); // no clique ainda não estava madura
+    expect(queued.body.inventory[corn.harvestItemId]).toBeUndefined(); // no clique ainda não estava madura
 
     at(queued.body.farmer.jobs[0].endsAt - T + 1);
-    expect((await p.state()).money).toBe(100 + corn.harvestPrice); // na chegada, estava
+    expect((await p.state()).inventory[corn.harvestItemId]).toBe(1); // na chegada, estava
   });
 });

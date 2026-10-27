@@ -4,8 +4,10 @@ import type { GameState } from "../entities/game-state";
 import * as repo from "../repositories/game.repository";
 import { distance, positionAt, schedule, type Cell } from "../utils/farmer-timeline";
 import { GRID_SIZE, MAX_FARM_JOBS } from "../utils/game.constants";
+import { barnCollectTarget, machineCollectTarget, wellTarget } from "../utils/layout";
 import * as actions from "./game-actions.service";
 import { loadState } from "./game-state.service";
+import * as production from "./production.service";
 
 // O fazendeiro e a fila dele. O cliente só enfileira e cancela; quem anda, espera e executa cada ação
 // (uma de cada vez, na ordem) é o servidor. O worker (worker/farmer.worker.ts) passa por aqui a cada
@@ -65,6 +67,11 @@ function run(tx: repo.Tx, save: repo.LockedSave, job: repo.FarmJobRow, now: numb
     job.action === "till" ? actions.tillAction(tile)
     : job.action === "plant" ? actions.plantAction({ ...tile, cropId: job.cropId! })
     : job.action === "harvest" ? actions.harvestAction(tile)
+    : job.action === "fertilize" ? actions.fertilizeAction(tile)
+    : job.action === "water" ? actions.waterAction(tile)
+    : job.action === "refill_can" ? production.refillCanAction()
+    : job.action === "collect_machine" ? production.collectMachineAction(job.machineId!)
+    : job.action === "collect_barn" ? production.collectBarnAction()
     : actions.harvestTreeAction(job.treeId!);
   return action(tx, save, now);
 }
@@ -74,14 +81,14 @@ function run(tx: repo.Tx, save: repo.LockedSave, job: repo.FarmJobRow, now: numb
 // Estado do jogo com a fila em dia (é o que GET /game/state devolve)
 export const refresh = (userId: string) => withFarmer(userId, async () => {});
 
-type JobKeyed = { action: string; plotX: number | null; plotY: number | null; row: number | null; col: number | null; treeId: string | null };
-const keyOf = (j: JobKeyed) => `${j.action}|${j.treeId ?? `${j.plotX},${j.plotY},${j.row},${j.col}`}`;
+type JobKeyed = { action: string; plotX: number | null; plotY: number | null; row: number | null; col: number | null; treeId: string | null; machineId: string | null };
+const keyOf = (j: JobKeyed) => `${j.action}|${j.treeId ?? j.machineId ?? `${j.plotX},${j.plotY},${j.row},${j.col}`}`;
 
 // Vira pedidos na fila: um por tile, do mais perto para o mais longe de onde o fazendeiro vai estar
 export const enqueue = (userId: string, input: EnqueueInput) =>
   withFarmer(userId, async (tx, save, now) => {
     const pending = await repo.findJobs(tx, save.id);
-    const candidates = await toJobs(tx, save.id, input);
+    const candidates = await toJobs(tx, save, input);
 
     // o mesmo tile/árvore não entra duas vezes na fila (cliques repetidos)
     const queued = new Set(pending.map(keyOf));
@@ -126,12 +133,30 @@ export const tick = async (userId: string) => {
 
 // ---------- Montagem dos pedidos ----------
 
-async function toJobs(tx: repo.Tx, saveId: string, input: EnqueueInput): Promise<repo.NewFarmJob[]> {
+const NO_TILE = { plotX: null, plotY: null, row: null, col: null, cropId: null, treeId: null, machineId: null };
+
+async function toJobs(tx: repo.Tx, save: repo.LockedSave, input: EnqueueInput): Promise<repo.NewFarmJob[]> {
+  const saveId = save.id;
   if (input.action === "harvest_tree") {
     const tree = await repo.findTree(tx, input.treeId);
     if (!tree) throw new NotFoundError("Árvore não encontrada", "TREE_NOT_FOUND");
     // ele para na frente da árvore (uma célula adiante em linha e coluna), não em cima do tronco
-    return [{ action: "harvest_tree", plotX: null, plotY: null, row: null, col: null, cropId: null, treeId: tree.id, targetRow: tree.row + 1, targetCol: tree.col + 1 }];
+    return [{ ...NO_TILE, action: "harvest_tree", treeId: tree.id, targetRow: tree.row + 1, targetCol: tree.col + 1 }];
+  }
+  if (input.action === "collect_machine") {
+    const owned = await production.requireOwnedMachine(tx, saveId, input.machineId);
+    // como na árvore: para na frente da máquina, onde o jogador a deixou
+    const target = machineCollectTarget(owned, owned.size);
+    return [{ ...NO_TILE, action: "collect_machine", machineId: owned.machineId, targetRow: target.row, targetCol: target.col }];
+  }
+  if (input.action === "refill_can") {
+    const target = wellTarget(production.requireCanRefill(save));
+    return [{ ...NO_TILE, action: "refill_can", targetRow: target.row, targetCol: target.col }];
+  }
+  if (input.action === "collect_barn") {
+    if (save.barnRow === null || save.barnCol === null) throw new UnprocessableError("Compre o celeiro antes", "NO_BARN");
+    const target = barnCollectTarget({ row: save.barnRow, col: save.barnCol });
+    return [{ ...NO_TILE, action: "collect_barn", targetRow: target.row, targetCol: target.col }];
   }
   const plot = await repo.findPlot(tx, saveId, input.x, input.y);
   if (!plot) throw new NotFoundError("Terreno não encontrado", "PLOT_NOT_FOUND");
@@ -149,6 +174,7 @@ async function toJobs(tx: repo.Tx, saveId: string, input: EnqueueInput): Promise
     col: t.col,
     cropId,
     treeId: null,
+    machineId: null,
     targetRow: input.y * GRID_SIZE + t.row,
     targetCol: input.x * GRID_SIZE + t.col,
   }));

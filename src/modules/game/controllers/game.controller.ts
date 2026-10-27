@@ -1,8 +1,9 @@
 import { asyncHandler } from "../../../shared/http/asyncHandler";
 import { currentUser } from "../../auth/middlewares/require-auth";
-import type { EnqueueInput } from "../dto/game.dto";
+import type { EnqueueInput, MoveBuildingInput } from "../dto/game.dto";
 import * as actions from "../services/game-actions.service";
 import * as farmer from "../services/farmer.service";
+import * as production from "../services/production.service";
 import { getCatalog } from "../services/catalog.service";
 
 type Params = Record<string, string>;
@@ -34,8 +35,44 @@ export const buySeed = asyncHandler<Params, { cropId: string; quantity: number }
   res.json(await actions.buySeed(currentUser(res).id, req.body));
 });
 
-export const sellFruit = asyncHandler<Params, { itemId: string; quantity?: number }>(async (req, res) => {
-  res.json(await actions.sellFruit(currentUser(res).id, req.body));
+export const sellItem = asyncHandler<Params, { itemId: string; quantity?: number }>(async (req, res) => {
+  res.json(await actions.sellItem(currentUser(res).id, req.body));
+});
+
+export const buyMachine = asyncHandler<Params, { machineId: string; row: number; col: number }>(async (req, res) => {
+  res.json(await production.buyMachine(currentUser(res).id, req.body));
+});
+
+export const startRecipe = asyncHandler<Params, { recipeId: string }>(async (req, res) => {
+  res.json(await production.startRecipe(currentUser(res).id, req.body));
+});
+
+export const buyBarn = asyncHandler<Params, { row: number; col: number }>(async (req, res) => {
+  res.json(await production.buyBarn(currentUser(res).id, req.body));
+});
+
+export const expandBarn = asyncHandler(async (_req, res) => {
+  res.json(await production.expandBarn(currentUser(res).id));
+});
+
+export const buyAnimal = asyncHandler<Params, { animalId: string }>(async (req, res) => {
+  res.json(await production.buyAnimal(currentUser(res).id, req.body));
+});
+
+export const feedAnimals = asyncHandler(async (_req, res) => {
+  res.json(await production.feedAnimals(currentUser(res).id));
+});
+
+export const buyWell = asyncHandler<Params, { row: number; col: number }>(async (req, res) => {
+  res.json(await production.buyWell(currentUser(res).id, req.body));
+});
+
+export const buyCan = asyncHandler(async (_req, res) => {
+  res.json(await actions.buyCan(currentUser(res).id));
+});
+
+export const moveBuilding = asyncHandler<Params, MoveBuildingInput>(async (req, res) => {
+  res.json(await production.moveBuilding(currentUser(res).id, req.body));
 });
 
 export const buyPlot = asyncHandler<Params, { x: number; y: number }>(async (req, res) => {
