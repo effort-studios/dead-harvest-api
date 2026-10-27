@@ -1,0 +1,80 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: Typecheck, migrations, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: deadharvest
+          POSTGRES_PASSWORD: deadharvest
+          POSTGRES_DB: deadharvest
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U deadharvest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Os testes de integração criam e usam deadharvest_test (veja tests/setup/test-db.ts)
+      DATABASE_URL: postgresql://deadharvest:deadharvest@localhost:5432/deadharvest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+
+      # Falha se o schema.prisma mudou sem uma migration correspondente
+      - name: Migrations batem com o schema
+        run: |
+          psql "$DATABASE_URL" -c 'CREATE DATABASE shadow'
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url postgresql://deadharvest:deadharvest@localhost:5432/shadow \
+            --exit-code
+
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    name: Deploy na Railway
+    needs: ci
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Um deploy por vez; um push novo espera o anterior terminar
+    concurrency:
+      group: railway-production
+      cancel-in-progress: false
+    environment: production
+    container: ghcr.io/railwayapp/cli:latest
+    env:
+      # Project token do ambiente de produção (Project Settings → Tokens)
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      # Usa o railway.json: build, migrate:deploy no preDeploy e healthcheck em /health
+      - run: railway up --ci --service "${{ vars.RAILWAY_SERVICE }}"
