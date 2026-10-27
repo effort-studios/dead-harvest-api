@@ -2,10 +2,13 @@ import { BadRequestError, ConflictError, NotFoundError, UnprocessableError } fro
 import type { TilesInput } from "../dto/game.dto";
 import type { GameState } from "../entities/game-state";
 import * as repo from "../repositories/game.repository";
-import { plotPrice } from "../utils/game.constants";
+import { FERTILIZER_ITEM, GRID_SIZE, plotPrice, WATERING_CAN } from "../utils/game.constants";
+import { growthSeconds, settleGrowth } from "../utils/growth";
+import { cellsOf } from "../utils/layout";
 import { loadState } from "./game-state.service";
+import { buildingAreas } from "./layout.service";
 
-// Cada ação do jogador (arar, plantar, colher, comprar, vender) é validada e aplicada aqui, com os preços
+// Cada ação do jogador (arar, plantar, colher, adubar, comprar, vender) é validada e aplicada aqui, com os preços
 // e tempos do catálogo no banco. Convenção dos erros:
 //   400 referência inválida (planta/item que não existe) · 404 terreno/árvore que não existe
 //   409 o alvo já está no estado pedido (já arado, terreno já é seu)
@@ -14,9 +17,9 @@ import { loadState } from "./game-state.service";
 const tileKey = (t: { row: number; col: number }) => `${t.row},${t.col}`;
 
 // Roda a ação com o save do jogador travado, numa transação: se lançar, nada é gravado. Devolve o estado novo.
-type Action = (tx: repo.Tx, save: repo.LockedSave, now: number) => Promise<void>;
+export type Action = (tx: repo.Tx, save: repo.LockedSave, now: number) => Promise<void>;
 
-async function act(userId: string, action: Action): Promise<GameState> {
+export async function act(userId: string, action: Action): Promise<GameState> {
   return repo.transaction(async (tx) => {
     const now = Date.now();
     const save = await repo.lockSave(tx, userId);
@@ -41,7 +44,13 @@ export const tillAction = (input: TilesInput): Action =>
     const used = new Set(plot.tiles.map(tileKey));
     const soil = input.tiles.filter((t) => !used.has(tileKey(t)));
     if (soil.length === 0) throw new ConflictError("Esses tiles já estão arados", "TILES_ALREADY_TILLED");
-    await repo.createTilledTiles(tx, plot.id, soil);
+    // embaixo de prédio não se ara (tiles do terreno, contados a partir do canto dele)
+    const built = new Set(
+      (await buildingAreas(tx, save)).flatMap(cellsOf).map((c) => tileKey({ row: c.row - input.y * GRID_SIZE, col: c.col - input.x * GRID_SIZE })),
+    );
+    const free = soil.filter((t) => !built.has(tileKey(t)));
+    if (free.length === 0) throw new UnprocessableError("Tem um prédio aí", "TILES_UNDER_BUILDING");
+    await repo.createTilledTiles(tx, plot.id, free);
   };
 
 // Planta nos tiles arados, na ordem pedida, enquanto houver semente
@@ -61,21 +70,72 @@ export const plantAction = (input: TilesInput & { cropId: string }): Action =>
     await repo.removeItem(tx, save.id, crop.seedItemId, chosen.length, have);
   };
 
-// Colhe os tiles com planta madura (crescimento conferido pelo relógio do servidor)
+// Colhe os tiles com planta madura (crescimento conferido pelo relógio do servidor): cada um dá 1 item de
+// colheita, que vai para o armazém (inventário) e é vendido ou usado nas máquinas
 export const harvestAction = (input: TilesInput): Action =>
   async (tx, save, now) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const byKey = new Map(plot.tiles.map((t) => [tileKey(t), t]));
     const ripe = input.tiles.flatMap((pos) => {
       const t = byKey.get(tileKey(pos));
-      const grown = t?.state === "planted" && t.crop && t.plantedAt && now - t.plantedAt.getTime() >= t.crop.growSeconds * 1000;
-      return grown ? [{ row: t.row, col: t.col, price: t.crop!.harvestPrice }] : [];
+      const grown = t?.state === "planted" && t.crop && growthSeconds(t, now) >= t.crop.growSeconds;
+      return grown ? [{ row: t.row, col: t.col, itemId: t.crop!.harvestItemId }] : [];
     });
     if (ripe.length === 0) throw new UnprocessableError("A planta ainda não está madura", "CROP_NOT_RIPE");
 
     await repo.clearTiles(tx, plot.id, ripe);
-    await repo.changeMoney(tx, save.id, ripe.reduce((sum, t) => sum + t.price, 0));
+    const counts = new Map<string, number>();
+    for (const t of ripe) counts.set(t.itemId, (counts.get(t.itemId) ?? 0) + 1);
+    for (const [itemId, n] of counts) await repo.addItem(tx, save.id, itemId, n);
   };
+
+type PlotTile = NonNullable<Awaited<ReturnType<typeof repo.findPlot>>>["tiles"][number];
+
+// Tiles pedidos que dá para adubar ou regar: terra arada ou com planta, ainda sem esse bônus
+function boostable(plot: { tiles: PlotTile[] }, input: TilesInput, already: (t: PlotTile) => boolean, what: { verb: string; code: string }) {
+  const byKey = new Map(plot.tiles.map((t) => [tileKey(t), t]));
+  const soil = input.tiles.map((pos) => byKey.get(tileKey(pos))).filter((t): t is PlotTile => t !== undefined);
+  if (soil.length === 0) throw new UnprocessableError(`Só dá para ${what.verb} terra arada ou plantada`, "TILES_NOT_TILLED");
+  const fresh = soil.filter((t) => !already(t));
+  if (fresh.length === 0) throw new ConflictError(`Esses tiles já estão ${what.verb === "adubar" ? "adubados" : "regados"}`, what.code);
+  return fresh;
+}
+
+// Com planta crescendo, grava o crescimento até agora antes do bônus mudar a velocidade (utils/growth)
+const settled = (t: PlotTile, now: number) => (t.state === "planted" ? { row: t.row, col: t.col, ...settleGrowth(t, now) } : { row: t.row, col: t.col });
+
+// Aduba os tiles (arados ou já plantados) que não estão adubados, enquanto houver adubo
+export const fertilizeAction = (input: TilesInput): Action =>
+  async (tx, save, now) => {
+    const plot = await requirePlot(tx, save.id, input.x, input.y);
+    const fresh = boostable(plot, input, (t) => t.fertilized, { verb: "adubar", code: "TILES_ALREADY_FERTILIZED" });
+    const have = await repo.itemCount(tx, save.id, FERTILIZER_ITEM);
+    if (have === 0) throw new UnprocessableError("Você não tem adubo (faça na Composteira)", "NO_FERTILIZER");
+    const chosen = fresh.slice(0, have);
+    for (const t of chosen) await repo.boostTile(tx, plot.id, settled(t, now), { fertilized: true });
+    await repo.removeItem(tx, save.id, FERTILIZER_ITEM, chosen.length, have);
+  };
+
+// Rega os tiles (arados ou já plantados) que não estão regados, 1 carga do regador por tile
+export const waterAction = (input: TilesInput): Action =>
+  async (tx, save, now) => {
+    if (save.canCharges === null) throw new UnprocessableError("Compre o regador na loja", "NO_CAN");
+    const plot = await requirePlot(tx, save.id, input.x, input.y);
+    const fresh = boostable(plot, input, (t) => t.watered, { verb: "regar", code: "TILES_ALREADY_WATERED" });
+    if (save.canCharges === 0) throw new UnprocessableError("O regador está vazio: encha no poço", "CAN_EMPTY");
+    const chosen = fresh.slice(0, save.canCharges);
+    for (const t of chosen) await repo.boostTile(tx, plot.id, settled(t, now), { watered: true });
+    await repo.setCanCharges(tx, save.id, save.canCharges - chosen.length);
+  };
+
+// Regador: compra uma vez, vem cheio
+export const buyCan = (userId: string) =>
+  act(userId, async (tx, save) => {
+    if (save.canCharges !== null) throw new ConflictError("Você já tem o regador", "CAN_ALREADY_OWNED");
+    if (save.money < WATERING_CAN.price) throw new UnprocessableError("Dinheiro insuficiente", "INSUFFICIENT_FUNDS");
+    await repo.setCanCharges(tx, save.id, WATERING_CAN.charges);
+    await repo.changeMoney(tx, save.id, -WATERING_CAN.price);
+  });
 
 // Compra sementes; se o dinheiro não dá para todas, compra as que dá
 export const buySeed = (userId: string, input: { cropId: string; quantity: number }) =>
@@ -89,8 +149,8 @@ export const buySeed = (userId: string, input: { cropId: string; quantity: numbe
     await repo.addItem(tx, save.id, crop.seedItemId, n);
   });
 
-// Vende frutas do inventário (todas, se a quantidade não vier)
-export const sellFruit = (userId: string, input: { itemId: string; quantity?: number }) =>
+// Vende um item do armazém (todos, se a quantidade não vier): frutas, colheitas, produtos
+export const sellItem = (userId: string, input: { itemId: string; quantity?: number }) =>
   act(userId, async (tx, save) => {
     const item = await repo.findItem(tx, input.itemId);
     if (!item || item.sellPrice == null) throw new BadRequestError("Esse item não se vende", "ITEM_NOT_SELLABLE");
@@ -130,4 +190,6 @@ export const harvestTreeAction = (treeId: string): Action =>
 export const till = (userId: string, input: TilesInput) => act(userId, tillAction(input));
 export const plant = (userId: string, input: TilesInput & { cropId: string }) => act(userId, plantAction(input));
 export const harvest = (userId: string, input: TilesInput) => act(userId, harvestAction(input));
+export const fertilize = (userId: string, input: TilesInput) => act(userId, fertilizeAction(input));
+export const water = (userId: string, input: TilesInput) => act(userId, waterAction(input));
 export const harvestTree = (userId: string, treeId: string) => act(userId, harvestTreeAction(treeId));

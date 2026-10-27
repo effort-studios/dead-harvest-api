@@ -11,12 +11,17 @@ datasource db {
 // No código TypeScript continua camelCase.
 //
 // O servidor é a fonte da verdade do jogo: nada de estado em JSON. Duas famílias de tabelas:
-//   catálogo (items, crops, trees): regras do jogo, iguais para todos, populadas por migration;
-//   estado do jogador (saves, plots, tiles, inventory_items, tree_harvests): tudo com FK.
+//   catálogo (items, crops, trees, machines, recipes, recipe_inputs, animals): regras do jogo, iguais para
+//   todos, populadas por migration;
+//   estado do jogador (saves, plots, tiles, inventory_items, tree_harvests, save_machines, machine_jobs,
+//   save_animals): tudo com FK.
 
 enum ItemKind {
   seed
   fruit
+  crop // colheita de uma planta (vai para o armazém)
+  animal_product // ovo, leite, lã
+  product // feito numa máquina
 
   @@map("item_kind")
 }
@@ -26,6 +31,11 @@ enum JobAction {
   plant
   harvest
   harvest_tree
+  fertilize
+  collect_machine
+  collect_barn
+  water
+  refill_can
 
   @@map("job_action")
 }
@@ -95,7 +105,7 @@ model PasswordReset {
 
 // ---------- Catálogo ----------
 
-// Tudo que pode ficar no inventário (hoje sementes e frutas; ferramentas entram aqui depois).
+// Tudo que pode ficar no inventário: sementes, frutas, colheitas, produtos dos animais e das máquinas.
 // O id é um slug estável ("corn", "apple") e é a chave usada pelo jogo.
 model Item {
   id        String   @id
@@ -105,20 +115,28 @@ model Item {
   sellPrice Int?     @map("sell_price") // preço de venda; nulo = não se vende
   sortOrder Int      @map("sort_order")
 
-  crop      Crop?
-  trees     Tree[]
-  inventory InventoryItem[]
+  crop             Crop?
+  harvestOf        Crop?           @relation("CropHarvest")
+  trees            Tree[]
+  inventory        InventoryItem[]
+  recipeOutputs    Recipe[]
+  recipeInputs     RecipeInput[]
+  animalFeeds      Animal[]        @relation("AnimalFeed")
+  animalProducts   Animal[]        @relation("AnimalProduct")
+  animalByproducts Animal[]        @relation("AnimalByproduct")
 
   @@map("items")
 }
 
 model Crop {
-  id           String @id
-  name         String
-  growSeconds  Int    @map("grow_seconds") // tempo até amadurecer
-  harvestPrice Int    @map("harvest_price") // dinheiro ao colher
-  seedItemId   String @unique @map("seed_item_id")
-  seedItem     Item   @relation(fields: [seedItemId], references: [id])
+  id            String @id
+  name          String
+  growSeconds   Int    @map("grow_seconds") // tempo até amadurecer
+  seedItemId    String @unique @map("seed_item_id")
+  seedItem      Item   @relation(fields: [seedItemId], references: [id])
+  // Colher dá 1 deste item (vai para o armazém; o preço de venda é o do item)
+  harvestItemId String @unique @map("harvest_item_id")
+  harvestItem   Item   @relation("CropHarvest", fields: [harvestItemId], references: [id])
 
   tiles Tile[]
 
@@ -141,6 +159,77 @@ model Tree {
   @@map("trees")
 }
 
+// Máquinas do quintal: cada uma tem lugar fixo no mapa e o jogador compra uma de cada
+model Machine {
+  id        String @id
+  name      String
+  buyPrice  Int    @map("buy_price")
+  size      Int // ocupa size x size células do mapa (CHECK 1..3)
+  queueSize Int    @map("queue_size") // quantas receitas cabem na fila (prontas e não coletadas contam)
+  sortOrder Int    @map("sort_order")
+
+  recipes Recipe[]
+  owners  SaveMachine[]
+
+  @@map("machines")
+}
+
+// Receita de uma máquina: ingredientes (recipe_inputs) -> `outputQuantity` de um item, em `seconds`
+model Recipe {
+  id             String  @id
+  machineId      String  @map("machine_id")
+  machine        Machine @relation(fields: [machineId], references: [id])
+  outputItemId   String  @map("output_item_id")
+  outputItem     Item    @relation(fields: [outputItemId], references: [id])
+  outputQuantity Int     @map("output_quantity")
+  seconds        Int
+  sortOrder      Int     @map("sort_order")
+
+  inputs RecipeInput[]
+  jobs   MachineJob[]
+
+  @@index([machineId])
+  @@index([outputItemId])
+  @@map("recipes")
+}
+
+model RecipeInput {
+  recipeId String @map("recipe_id")
+  recipe   Recipe @relation(fields: [recipeId], references: [id])
+  itemId   String @map("item_id")
+  item     Item   @relation(fields: [itemId], references: [id])
+  quantity Int
+
+  @@id([recipeId, itemId])
+  @@index([itemId])
+  @@map("recipe_inputs")
+}
+
+// Animais do celeiro: comem ração e produzem depois de um tempo
+model Animal {
+  id                String  @id
+  name              String
+  buyPrice          Int     @map("buy_price")
+  feedItemId        String  @map("feed_item_id")
+  feedItem          Item    @relation("AnimalFeed", fields: [feedItemId], references: [id])
+  feedQuantity      Int     @map("feed_quantity")
+  productItemId     String  @map("product_item_id")
+  productItem       Item    @relation("AnimalProduct", fields: [productItemId], references: [id])
+  produceSeconds    Int     @map("produce_seconds")
+  // O que ele solta a cada coleta, além do produto (esterco); nulo = nada (CHECK animals_byproduct_check)
+  byproductItemId   String? @map("byproduct_item_id")
+  byproductItem     Item?   @relation("AnimalByproduct", fields: [byproductItemId], references: [id], onDelete: Restrict)
+  byproductQuantity Int     @default(0) @map("byproduct_quantity")
+  sortOrder         Int     @map("sort_order")
+
+  owned SaveAnimal[]
+
+  @@index([feedItemId])
+  @@index([productItemId])
+  @@index([byproductItemId])
+  @@map("animals")
+}
+
 // ---------- Estado do jogador ----------
 
 model Save {
@@ -160,10 +249,23 @@ model Save {
   farmerCol    Float     @default(-1.5) @map("farmer_col")
   farmerFreeAt DateTime? @map("farmer_free_at") @db.Timestamptz(3)
 
+  // Baias do celeiro; 0 = ainda não comprou o celeiro
+  barnCapacity Int  @default(0) @map("barn_capacity")
+  // Onde o jogador construiu o celeiro; nulos = sem celeiro (CHECK saves_barn_position_check)
+  barnRow      Int? @map("barn_row")
+  barnCol      Int? @map("barn_col")
+  // Regador: cargas (nulo = não comprou); poço: onde o jogador construiu (nulos = sem poço)
+  canCharges   Int? @map("can_charges")
+  wellRow      Int? @map("well_row")
+  wellCol      Int? @map("well_col")
+
   plots        Plot[]
   inventory    InventoryItem[]
   treeHarvests TreeHarvest[]
   farmJobs     FarmJob[]
+  machines     SaveMachine[]
+  machineJobs  MachineJob[]
+  animals      SaveAnimal[]
 
   @@map("saves")
 }
@@ -184,15 +286,21 @@ model Plot {
 
 // Só existe linha para tile arado ou plantado; o resto do terreno é terra sem arar
 model Tile {
-  plotId    String    @map("plot_id") @db.Uuid
-  plot      Plot      @relation(fields: [plotId], references: [id], onDelete: Cascade)
-  row       Int       @db.SmallInt // 0..9
-  col       Int       @db.SmallInt // 0..9
-  state     TileState
-  cropId    String?   @map("crop_id")
-  crop      Crop?     @relation(fields: [cropId], references: [id], onDelete: Restrict)
-  // O crescimento é tempo real: a planta amadurece em plantedAt + crops.grow_seconds
-  plantedAt DateTime? @map("planted_at") @db.Timestamptz(3)
+  plotId     String    @map("plot_id") @db.Uuid
+  plot       Plot      @relation(fields: [plotId], references: [id], onDelete: Cascade)
+  row        Int       @db.SmallInt // 0..9
+  col        Int       @db.SmallInt // 0..9
+  state      TileState
+  cropId     String?   @map("crop_id")
+  crop       Crop?     @relation(fields: [cropId], references: [id], onDelete: Restrict)
+  plantedAt  DateTime? @map("planted_at") @db.Timestamptz(3)
+  // Adubado e regado: a planta cresce mais rápido (+30% cada); a colheita tira os dois
+  fertilized Boolean   @default(false)
+  watered    Boolean   @default(false)
+  // Crescimento acumulado: `growth` segundos de planta até `growthAt`; daí em diante cresce na velocidade do
+  // tile (utils/growth.ts). A planta amadurece quando chega a crops.grow_seconds. (CHECK tiles_growth_check)
+  growth     Float     @default(0)
+  growthAt   DateTime? @map("growth_at") @db.Timestamptz(3)
 
   @@id([plotId, row, col])
   @@index([cropId])
@@ -238,6 +346,7 @@ model FarmJob {
   col       Int?      @db.SmallInt
   cropId    String?   @map("crop_id") // só no plantio
   treeId    String?   @map("tree_id") // só na colheita de árvore
+  machineId String?   @map("machine_id") // só na coleta de máquina
   // Célula do mapa onde o fazendeiro precisa estar para agir (calculada ao enfileirar)
   targetRow Float     @map("target_row")
   targetCol Float     @map("target_col")
@@ -245,4 +354,56 @@ model FarmJob {
 
   @@index([saveId, seq])
   @@map("farm_jobs")
+}
+
+// Máquina que o jogador comprou
+model SaveMachine {
+  saveId    String   @map("save_id") @db.Uuid
+  save      Save     @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  machineId String   @map("machine_id")
+  machine   Machine  @relation(fields: [machineId], references: [id])
+  // Onde o jogador construiu (e depois arrastou); célula de cima do chão da máquina
+  row       Int
+  col       Int
+  boughtAt  DateTime @default(now()) @map("bought_at") @db.Timestamptz(3)
+
+  jobs MachineJob[]
+
+  @@id([saveId, machineId])
+  @@index([machineId])
+  @@map("save_machines")
+}
+
+// Fila de uma máquina: cada receita começa quando a anterior fica pronta. Tempo real por timestamp (pronta em
+// readyAt, mesmo com o jogo fechado); a linha some quando o fazendeiro coleta.
+model MachineJob {
+  id        String      @id @default(uuid()) @db.Uuid
+  saveId    String      @map("save_id") @db.Uuid
+  save      Save        @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  machineId String      @map("machine_id")
+  owner     SaveMachine @relation(fields: [saveId, machineId], references: [saveId, machineId], onDelete: Cascade)
+  recipeId  String      @map("recipe_id")
+  recipe    Recipe      @relation(fields: [recipeId], references: [id])
+  startsAt  DateTime    @map("starts_at") @db.Timestamptz(3)
+  readyAt   DateTime    @map("ready_at") @db.Timestamptz(3)
+
+  @@index([saveId, machineId, readyAt])
+  @@index([recipeId])
+  @@map("machine_jobs")
+}
+
+// Animal do celeiro. Alimentado (fedAt) = produzindo; fica pronto em fedAt + animals.produce_seconds.
+// Sem fedAt = com fome, parado.
+model SaveAnimal {
+  id        String    @id @default(uuid()) @db.Uuid
+  saveId    String    @map("save_id") @db.Uuid
+  save      Save      @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  animalId  String    @map("animal_id")
+  animal    Animal    @relation(fields: [animalId], references: [id])
+  fedAt     DateTime? @map("fed_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([saveId])
+  @@index([animalId])
+  @@map("save_animals")
 }

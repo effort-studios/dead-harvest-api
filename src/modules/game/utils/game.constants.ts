@@ -14,3 +14,25 @@ export const plotPrice = (ownedPlots: number) => Math.round(PLOT_BASE_PRICE * PL
 
 // Fila do fazendeiro: no máximo este tanto de pedidos pendentes por jogador
 export const MAX_FARM_JOBS = 100
+
+// Celeiro: o jogador constrói onde quiser; compra com 4 baias e amplia de 2 em 2 (400 a 1ª ampliação, +50% a cada uma)
+export const BARN = {
+  price: 500,
+  startCapacity: 4,
+  expandBy: 2,
+  maxCapacity: 12,
+  expandBasePrice: 400,
+  expandFactor: 1.5,
+}
+export const barnExpandPrice = (capacity: number) =>
+  Math.round(BARN.expandBasePrice * BARN.expandFactor ** ((capacity - BARN.startCapacity) / BARN.expandBy))
+
+// Adubo (feito na Composteira, de tomate ou do esterco dos animais) e água (do regador): cada um faz a planta
+// crescer 30% mais rápido, e os dois somam (60%). Valem antes ou depois de plantar; a colheita tira os dois.
+export const FERTILIZER_ITEM = "fertilizer"
+export const GROWTH_BONUS = { fertilizer: 0.3, water: 0.3 }
+
+// Regador: compra uma vez na loja, vem cheio; cada tile regado gasta 1 carga; enche de novo no poço
+export const WATERING_CAN = { price: 250, charges: 10 }
+// Poço: prédio de 1 célula onde o fazendeiro enche o regador
+export const WELL = { price: 400 }

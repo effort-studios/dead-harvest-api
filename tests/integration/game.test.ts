@@ -12,7 +12,7 @@ afterAll(async () => {
 });
 
 type Catalog = {
-  crops: { id: string; growSeconds: number; harvestPrice: number; seedPrice: number }[];
+  crops: { id: string; growSeconds: number; harvestItemId: string; harvestPrice: number; seedPrice: number }[];
   fruits: { id: string; sellPrice: number }[];
   trees: { id: string; fruitId: string; fruitsPerHarvest: number; regrowSeconds: number }[];
 };
@@ -59,8 +59,14 @@ describe("autenticação nas rotas do jogo", () => {
     ["delete", "/game/jobs"],
     ["delete", "/game/jobs/9b2f6c1e-7d0a-4c52-9f3a-1d2e3f4a5b6c"],
     ["post", "/game/seeds/buy"],
-    ["post", "/game/fruits/sell"],
+    ["post", "/game/items/sell"],
     ["post", "/game/plots/buy"],
+    ["post", "/game/machines/buy"],
+    ["post", "/game/machines/start"],
+    ["post", "/game/barn/buy"],
+    ["post", "/game/barn/expand"],
+    ["post", "/game/animals/buy"],
+    ["post", "/game/animals/feed"],
   ] as const)("%s %s sem login: 401", async (method, path) => {
     const res = await request(app)[method](path);
     expect(res.status).toBe(401);
@@ -187,7 +193,7 @@ describe("colher pelo fazendeiro", () => {
     return p;
   }
   const growth = (p: { save: { id: string } }, seconds: number) =>
-    prisma.tile.updateMany({ where: { plot: { saveId: p.save.id } }, data: { plantedAt: new Date(Date.now() - seconds * 1000) } });
+    prisma.tile.updateMany({ where: { plot: { saveId: p.save.id } }, data: { plantedAt: new Date(Date.now() - seconds * 1000), growthAt: new Date(Date.now() - seconds * 1000) } });
 
   it("planta verde: a colheita é descartada e nada muda", async () => {
     const p = await plantedCorn("harvest-green");
@@ -198,25 +204,29 @@ describe("colher pelo fazendeiro", () => {
     expect(res.body.farmer.jobs).toEqual([]);
   });
 
-  it("madura (5s antes não; no tempo, sim): paga o preço e volta o tile para arado", async () => {
+  it("madura (5s antes não; no tempo, sim): a colheita vai para o armazém e o tile volta para arado", async () => {
     const p = await plantedCorn("harvest-ripe");
     const corn = catalog.crops.find((c) => c.id === "corn")!;
 
     await growth(p, corn.growSeconds - 5);
-    expect((await p.harvest([0, 0])).body.money).toBe(100);
+    expect((await p.harvest([0, 0])).body.inventory[corn.harvestItemId]).toBeUndefined();
 
     await growth(p, corn.growSeconds + 1);
     const res = await p.harvest([0, 0]);
-    expect(res.body.money).toBe(100 + corn.harvestPrice);
-    expect(res.body.plots[0].grid[0][0]).toEqual({ state: "tilled", crop: null, growth: 0 });
+    expect(res.body.money).toBe(100); // colher não paga: vende-se no armazém
+    expect(res.body.inventory[corn.harvestItemId]).toBe(1);
+    expect(res.body.plots[0].grid[0][0]).toEqual({ state: "tilled", crop: null, growth: 0, fertilized: false, watered: false });
+
+    const sold = await p.api.post("/game/items/sell", { itemId: corn.harvestItemId });
+    expect(sold.body.money).toBe(100 + corn.harvestPrice);
   });
 
-  it("colher de novo o mesmo tile não paga duas vezes", async () => {
+  it("colher de novo o mesmo tile não dá duas colheitas", async () => {
     const p = await plantedCorn("harvest-twice");
     await growth(p, 99_999);
     const corn = catalog.crops.find((c) => c.id === "corn")!;
     await p.harvest([0, 0]);
-    expect((await p.harvest([0, 0])).body.money).toBe(100 + corn.harvestPrice);
+    expect((await p.harvest([0, 0])).body.inventory[corn.harvestItemId]).toBe(1);
   });
 
   it("terreno inexistente: 404", async () => {
@@ -271,14 +281,14 @@ describe("POST /game/seeds/buy", () => {
   });
 });
 
-describe("POST /game/fruits/sell", () => {
+describe("POST /game/items/sell (armazém)", () => {
   const fruit = () => catalog.fruits[0];
   const give = (saveId: string, itemId: string, quantity: number) =>
     prisma.inventoryItem.upsert({ where: { saveId_itemId: { saveId, itemId } }, create: { saveId, itemId, quantity }, update: { quantity } });
 
   it("sem a fruta: 422 NOT_ENOUGH_ITEMS", async () => {
     const p = await newPlayer("sell-none");
-    const res = await p.api.post("/game/fruits/sell", { itemId: fruit().id });
+    const res = await p.api.post("/game/items/sell", { itemId: fruit().id });
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("NOT_ENOUGH_ITEMS");
   });
@@ -286,7 +296,7 @@ describe("POST /game/fruits/sell", () => {
   it("sem quantidade vende tudo e paga", async () => {
     const p = await newPlayer("sell-all");
     await give(p.save.id, fruit().id, 5);
-    const res = await p.api.post("/game/fruits/sell", { itemId: fruit().id });
+    const res = await p.api.post("/game/items/sell", { itemId: fruit().id });
     expect(res.status).toBe(200);
     expect(res.body.money).toBe(100 + fruit().sellPrice * 5);
     expect(res.body.inventory[fruit().id]).toBeUndefined();
@@ -295,9 +305,9 @@ describe("POST /game/fruits/sell", () => {
   it("com quantidade vende só aquela, e pedir mais do que tem vende o que tem", async () => {
     const p = await newPlayer("sell-some");
     await give(p.save.id, fruit().id, 5);
-    const some = await p.api.post("/game/fruits/sell", { itemId: fruit().id, quantity: 2 });
+    const some = await p.api.post("/game/items/sell", { itemId: fruit().id, quantity: 2 });
     expect(some.body.inventory[fruit().id]).toBe(3);
-    const more = await p.api.post("/game/fruits/sell", { itemId: fruit().id, quantity: 99 });
+    const more = await p.api.post("/game/items/sell", { itemId: fruit().id, quantity: 99 });
     expect(more.status).toBe(200);
     expect(more.body.money).toBe(100 + fruit().sellPrice * 5);
   });
@@ -305,7 +315,7 @@ describe("POST /game/fruits/sell", () => {
   it("item que não se vende (semente) ou que não existe: 400 ITEM_NOT_SELLABLE", async () => {
     const p = await newPlayer("sell-bad");
     for (const itemId of ["corn", "nao-existe"]) {
-      const res = await p.api.post("/game/fruits/sell", { itemId });
+      const res = await p.api.post("/game/items/sell", { itemId });
       expect(res.status).toBe(400);
       expect(res.body.code).toBe("ITEM_NOT_SELLABLE");
     }
