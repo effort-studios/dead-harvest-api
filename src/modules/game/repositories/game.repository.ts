@@ -70,6 +70,10 @@ export const createPlot = (tx: Tx, saveId: string, x: number, y: number) => tx.p
 export const createTilledTiles = (tx: Tx, plotId: string, tiles: TilePos[]) =>
   tx.tile.createMany({ data: tiles.map((t) => ({ plotId, row: t.row, col: t.col, state: "tilled" as const })) });
 
+// Desfaz a aragem: o tile deixa de existir (terra sem arar é a ausência de linha)
+export const deleteTiles = (tx: Tx, plotId: string, tiles: TilePos[]) =>
+  tx.tile.deleteMany({ where: { plotId, OR: tiles.map((t) => ({ row: t.row, col: t.col })) } });
+
 // A planta começa a crescer agora (crescimento acumulado zerado)
 export const plantTiles = (tx: Tx, plotId: string, tiles: TilePos[], cropId: string, plantedAt: Date) =>
   tx.tile.updateMany({

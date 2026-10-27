@@ -49,12 +49,13 @@ export const treeParams = z.object({ treeId: id });
 // Pedido para o fazendeiro: o cliente diz O QUE fazer e em quais tiles; quem decide a ordem, o tempo e se
 // dá certo é o servidor (services/farmer.service.ts)
 export const enqueueSchema = z.discriminatedUnion("action", [
-  tilesSchema.extend({ action: z.enum(["till", "harvest", "fertilize", "water"]) }),
+  tilesSchema.extend({ action: z.enum(["till", "untill", "harvest", "fertilize", "water"]) }),
   plantSchema.extend({ action: z.literal("plant") }),
   z.object({ action: z.literal("harvest_tree"), treeId: id }),
   z.object({ action: z.literal("collect_machine"), machineId: id }),
   z.object({ action: z.literal("collect_barn") }),
   z.object({ action: z.literal("refill_can") }),
+  z.object({ action: z.literal("move"), row: mapCell, col: mapCell }), // só andar até a célula
 ]);
 export type EnqueueInput = z.infer<typeof enqueueSchema>;
 

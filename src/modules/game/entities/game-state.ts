@@ -31,7 +31,7 @@ export type GameState = {
 // partir dos horários (ms, relógio do servidor) do primeiro pedido, que é o único que tem `startsAt`.
 export type JobView = {
   id: string;
-  action: "till" | "plant" | "harvest" | "harvest_tree" | "fertilize" | "water" | "collect_machine" | "collect_barn" | "refill_can";
+  action: "till" | "untill" | "plant" | "harvest" | "harvest_tree" | "fertilize" | "water" | "collect_machine" | "collect_barn" | "refill_can" | "move";
   plotX: number | null;
   plotY: number | null;
   row: number | null;

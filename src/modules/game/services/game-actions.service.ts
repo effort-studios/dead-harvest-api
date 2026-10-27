@@ -53,6 +53,16 @@ export const tillAction = (input: TilesInput): Action =>
     await repo.createTilledTiles(tx, plot.id, free);
   };
 
+// Desfaz a aragem dos tiles arados e vazios (com planta não: colha antes)
+export const untillAction = (input: TilesInput): Action =>
+  async (tx, save) => {
+    const plot = await requirePlot(tx, save.id, input.x, input.y);
+    const byKey = new Map(plot.tiles.map((t) => [tileKey(t), t]));
+    const tilled = input.tiles.filter((t) => byKey.get(tileKey(t))?.state === "tilled");
+    if (tilled.length === 0) throw new ConflictError("Só dá para desfazer a aragem de terra arada e vazia", "TILES_NOT_TILLED_EMPTY");
+    await repo.deleteTiles(tx, plot.id, tilled);
+  };
+
 // Planta nos tiles arados, na ordem pedida, enquanto houver semente
 export const plantAction = (input: TilesInput & { cropId: string }): Action =>
   async (tx, save, now) => {
@@ -188,6 +198,7 @@ export const harvestTreeAction = (treeId: string): Action =>
   };
 
 export const till = (userId: string, input: TilesInput) => act(userId, tillAction(input));
+export const untill = (userId: string, input: TilesInput) => act(userId, untillAction(input));
 export const plant = (userId: string, input: TilesInput & { cropId: string }) => act(userId, plantAction(input));
 export const harvest = (userId: string, input: TilesInput) => act(userId, harvestAction(input));
 export const fertilize = (userId: string, input: TilesInput) => act(userId, fertilizeAction(input));

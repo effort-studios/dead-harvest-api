@@ -36,6 +36,8 @@ enum JobAction {
   collect_barn
   water
   refill_can
+  move
+  untill
 
   @@map("job_action")
 }

@@ -189,4 +189,43 @@ describe("fila do fazendeiro com tempo", () => {
     at(queued.body.farmer.jobs[0].endsAt - T + 1);
     expect((await p.state()).inventory[corn.harvestItemId]).toBe(1); // na chegada, estava
   });
+
+  it("mover: ele só anda até a célula, sem agir, e pedidos para a mesma célula não se repetem", async () => {
+    const p = await newPlayer("move");
+    const res = await p.api.post("/game/jobs", { action: "move", row: 4, col: 3 });
+    expect(res.status).toBe(200);
+    const job = res.body.farmer.jobs[0];
+    expect(job).toMatchObject({ action: "move", targetRow: 4, targetCol: 3, row: null, col: null });
+    expect((await p.api.post("/game/jobs", { action: "move", row: 4, col: 3 })).body.farmer.jobs).toHaveLength(1);
+    expect((await p.api.post("/game/jobs", { action: "move", row: 5, col: 3 })).body.farmer.jobs).toHaveLength(2);
+
+    at(job.endsAt - T + 1);
+    const after = await p.state();
+    expect(after.farmer.jobs).toHaveLength(1); // o 2º pedido já está andando
+    expect(after.farmer).toMatchObject({ row: 4, col: 3 });
+    expect(await p.tilled()).toBe(0);
+  });
+
+  it("mover: célula fora dos limites é recusada (400)", async () => {
+    const p = await newPlayer("move-bad");
+    expect((await p.api.post("/game/jobs", { action: "move", row: 9999, col: 0 })).status).toBe(400);
+  });
+
+  it("desfazer a aragem: o tile arado e vazio volta a ser terra; com planta não", async () => {
+    const p = await newPlayer("untill");
+    const plot = await prisma.plot.findFirstOrThrow({ where: { save: { userId: p.user.id } } });
+    await prisma.tile.create({ data: { plotId: plot.id, row: 0, col: 0, state: "tilled" } });
+    await prisma.tile.create({ data: { plotId: plot.id, row: 0, col: 1, state: "planted", cropId: "corn", plantedAt: new Date(T), growthAt: new Date(T) } });
+    const job = (row: number, col: number) => p.api.post("/game/jobs", { action: "untill", x: 0, y: 0, tiles: [{ row, col }] });
+
+    const res = await job(0, 0);
+    expect(res.body.farmer.jobs[0]).toMatchObject({ action: "untill", row: 0, col: 0 });
+    at(res.body.farmer.jobs[0].endsAt - T + 1);
+    expect((await p.state()).plots[0].grid[0][0].state).toBe("soil");
+    expect(await p.tilled()).toBe(1); // sobrou só o plantado
+
+    const planted = await job(0, 1);
+    at(planted.body.farmer.jobs[0].endsAt - T + 1);
+    expect((await p.state()).plots[0].grid[0][1].state).toBe("planted"); // recusado: continua plantado
+  });
 });
