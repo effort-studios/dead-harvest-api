@@ -15,6 +15,9 @@ npx prisma migrate dev      # cria as tabelas
 npm run dev                 # API em http://localhost:3333
 ```
 
+## Variáveis de ambiente
+Veja o `.env.example`. As principais: `DATABASE_URL`, `PORT`, `WEB_URL` (origens liberadas no CORS, separadas por vírgula), `AUTH_SECRET` (mín. 32 caracteres), `DAY_LENGTH_SECONDS` (duração do dia do jogo), `COOKIE_SAMESITE` (`none` só com front e API em subdomínios diferentes, com HTTPS) e, opcionais, `FARMER_WALK_SPEED` (células por segundo, padrão 3.4) e `FARMER_ACT_MS` (duração do gesto de arar/plantar/colher, padrão 550).
+
 ## Scripts
 | Comando | O que faz |
 |---|---|
@@ -67,7 +70,7 @@ Sessão por cookie httpOnly (`dh_session`): o front chama com `credentials: 'inc
 | POST | `/auth/forgot-password` / `/auth/reset-password` | código por e-mail / nova senha com o código |
 | GET | `/game/catalog` | regras do jogo (plantas, itens, árvores, máquinas e receitas, animais, celeiro, adubo, preço do terreno, duração do dia); público |
 | GET | `/game/state` | estado do jogador logado |
-| POST | `/game/jobs` | Enfileira trabalho do fazendeiro: `{ action: "till"\|"harvest"\|"fertilize", x, y, tiles }`, `{ action: "plant", x, y, tiles, cropId }`, `{ action: "harvest_tree", treeId }`, `{ action: "collect_machine", machineId }` ou `{ action: "collect_barn" }`. Vira uma tarefa por tile (mais perto primeiro, até 100 na fila); o servidor anda e executa uma de cada vez, mesmo com o jogo fechado. 422 `FARM_QUEUE_FULL` se estourar |
+| POST | `/game/jobs` | Enfileira trabalho do fazendeiro: `{ action: "till"\|"untill"\|"harvest"\|"fertilize"\|"water", x, y, tiles }`, `{ action: "plant", x, y, tiles, cropId }`, `{ action: "harvest_tree", treeId }`, `{ action: "collect_machine", machineId }`, `{ action: "collect_barn" }`, `{ action: "refill_can" }` (enche o regador no poço) ou `{ action: "move", row, col }` (só anda até a célula). Vira uma tarefa por tile (mais perto primeiro, até 100 na fila); o servidor anda e executa uma de cada vez, com os tempos encadeados (cada tarefa começa quando a anterior termina), mesmo com o jogo fechado. 422 `FARM_QUEUE_FULL` se estourar |
 | DELETE | `/game/jobs` | cancela a fila toda (ele para onde está) |
 | DELETE | `/game/jobs/:jobId` | cancela uma tarefa (404 `JOB_NOT_FOUND` se não for do jogador) |
 | POST | `/game/seeds/buy` | `{ cropId, quantity }`: compra o que o dinheiro der (até `quantity`) |
