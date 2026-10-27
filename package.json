@@ -17,7 +17,9 @@
     "test:unit": "vitest run --project unit",
     "test:int": "vitest run --project integration",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "check:migrations": "tsx scripts/check-migrations.ts",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
