@@ -1,0 +1,8 @@
+#!/bin/sh
+# Roda antes de cada git push (ativado pelo "prepare" do npm install).
+# Precisa do Postgres local de pé (npm run db:up). Em emergência: git push --no-verify
+set -e
+
+npm run typecheck
+npm run check:migrations
+npm test
