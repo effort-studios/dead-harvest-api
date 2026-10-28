@@ -38,7 +38,6 @@ async function newPlayer(tag: string) {
 }
 
 const tiles = (...pos: [number, number][]) => pos.map(([row, col]) => ({ row, col }));
-const crop = () => catalog.crops[0];
 
 describe("GET /game/catalog (público)", () => {
   it("devolve regras do jogo sem exigir login", async () => {

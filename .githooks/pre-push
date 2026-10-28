@@ -3,6 +3,7 @@
 # Precisa do Postgres local de pé (npm run db:up). Em emergência: git push --no-verify
 set -e
 
+npm run lint
 npm run typecheck
 npm run check:migrations
 npm test

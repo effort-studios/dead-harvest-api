@@ -46,6 +46,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
+      - name: Lint
+        run: npm run lint
       - name: Typecheck
         run: npm run typecheck
       - name: Migrations batem com o schema
