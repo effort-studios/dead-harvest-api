@@ -6,11 +6,13 @@ import { GRID_SIZE } from "../utils/game.constants";
 
 const id = z.string().min(1).max(30);
 const cell = z.number().int().min(0).max(GRID_SIZE - 1);
+// Terreno na malha de terrenos. Sem limite, um número gigante estoura o INT do banco (500)
+const plotCoord = z.number().int().min(-50).max(50);
 
 // Ação em tiles de um terreno: um tile ou a linha/coluna inteira (até 10)
 export const tilesSchema = z.object({
-  x: z.number().int(), // terreno na malha de terrenos
-  y: z.number().int(),
+  x: plotCoord,
+  y: plotCoord,
   tiles: z
     .array(z.object({ row: cell, col: cell }))
     .min(1)
@@ -40,7 +42,7 @@ export const moveBuildingSchema = z.discriminatedUnion("kind", [
 ]);
 export type MoveBuildingInput = z.infer<typeof moveBuildingSchema>;
 
-export const buyPlotSchema = z.object({ x: z.number().int().min(-50).max(50), y: z.number().int().min(-50).max(50) });
+export const buyPlotSchema = z.object({ x: plotCoord, y: plotCoord });
 
 export type TilesInput = z.infer<typeof tilesSchema>;
 
