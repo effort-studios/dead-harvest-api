@@ -1,15 +1,28 @@
 import { asyncHandler } from "../../../shared/http/asyncHandler";
-import type { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from "../dto/auth.dto";
+import type { ForgotPasswordInput, LoginInput, RegisterInput, ResendVerificationInput, ResetPasswordInput, VerifyEmailInput } from "../dto/auth.dto";
 import { currentUser } from "../middlewares/require-auth";
 import * as auth from "../services/auth.service";
 import { clearSessionCookie, readCookie, SESSION_COOKIE, setSessionCookie } from "../utils/cookies";
 
 type Params = Record<string, string>;
 
+// Conta criada, mas sem sessão: o jogador ainda precisa confirmar o e-mail com o código (verify-email)
 export const register = asyncHandler<Params, RegisterInput>(async (req, res) => {
-  const { user, session } = await auth.register(req.body, req.get("user-agent"));
+  const { user } = await auth.register(req.body);
+  res.status(201).json({ user, emailVerificationRequired: true });
+});
+
+// Código certo: e-mail confirmado e já entra
+export const verifyEmail = asyncHandler<Params, VerifyEmailInput>(async (req, res) => {
+  const { user, session } = await auth.verifyEmail(req.body, req.get("user-agent"));
   setSessionCookie(res, session.token, session.expiresAt);
-  res.status(201).json({ user });
+  res.json({ user });
+});
+
+// Sempre 204, exista o e-mail ou não
+export const resendVerification = asyncHandler<Params, ResendVerificationInput>(async (req, res) => {
+  await auth.resendEmailVerification(req.body.email);
+  res.status(204).end();
 });
 
 export const login = asyncHandler<Params, LoginInput>(async (req, res) => {

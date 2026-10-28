@@ -1,6 +1,6 @@
 import request from "supertest";
 import { app } from "../../src/app";
-import { register } from "../../src/modules/auth/services/auth.service";
+import { login, register } from "../../src/modules/auth/services/auth.service";
 import { prisma } from "../../src/shared/database/prisma";
 
 // Todo usuário de teste tem e-mail neste domínio; é por ele que a limpeza os acha
@@ -13,10 +13,13 @@ export const uniqueEmail = (tag = "u") => `${tag}-${Date.now()}-${counter++}@${T
 // Apaga os usuários de teste; o ON DELETE CASCADE leva sessões, save, terrenos, inventário...
 export const cleanupTestUsers = () => prisma.user.deleteMany({ where: { email: { endsWith: `@${TEST_DOMAIN}` } } });
 
-// Cria um usuário pelo service (sem passar pelo rate limit do cadastro) e já devolve o cookie de sessão
+// Cria um usuário pelo service (sem passar pelo rate limit do cadastro) e já devolve o cookie de sessão.
+// O cadastro não abre sessão (falta confirmar o e-mail): aqui a confirmação é feita direto no banco e o login dá a sessão.
 export async function createUser(tag = "u") {
   const email = uniqueEmail(tag);
-  const { user, session } = await register({ email, password: PASSWORD, displayName: "Tester" });
+  await register({ email, password: PASSWORD, displayName: "Tester" });
+  await prisma.user.update({ where: { email }, data: { emailVerifiedAt: new Date() } });
+  const { user, session } = await login({ email, password: PASSWORD });
   return { user, email, password: PASSWORD, cookie: `dh_session=${session.token}` };
 }
 
