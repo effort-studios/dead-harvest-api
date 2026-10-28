@@ -10,6 +10,8 @@ const env = {
   DAY_LENGTH_SECONDS: "1440",
   FARMER_WALK_SPEED: "1000000", // fila do fazendeiro anda na hora
   FARMER_ACT_MS: "0",
+  RESEND_API_KEY: "", // vazio: os testes nunca enviam e-mail de verdade, mesmo com a chave no .env local
+  COOKIE_SAMESITE: "lax", // fixo: um COOKIE_SAMESITE no .env local não pode mudar o resultado dos testes
 };
 
 export default defineConfig({

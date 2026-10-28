@@ -1,8 +1,10 @@
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { app } from "../../src/app";
+import { register } from "../../src/modules/auth/services/auth.service";
+import * as emailVerifications from "../../src/modules/auth/repositories/email-verification.repository";
 import * as passwordResets from "../../src/modules/auth/repositories/password-reset.repository";
-import { hmac, sha256 } from "../../src/modules/auth/utils/tokens";
+import { hmac } from "../../src/modules/auth/utils/tokens";
 import { prisma } from "../../src/shared/database/prisma";
 import { as, cleanupTestUsers, createUser, PASSWORD, uniqueEmail } from "../helpers/users";
 
@@ -15,33 +17,32 @@ afterAll(async () => {
 const sessionCookie = (res: request.Response) => (res.headers["set-cookie"] as unknown as string[] | undefined)?.find((c) => c.startsWith("dh_session="));
 
 describe("POST /auth/register", () => {
-  it("cria a conta: 201, cookie de sessão httpOnly e usuário sem dados secretos", async () => {
+  it("cria a conta: 201, usuário sem dados secretos e SEM sessão (falta confirmar o e-mail)", async () => {
     const email = uniqueEmail("reg");
     const res = await request(app).post("/auth/register").send({ email, password: PASSWORD, displayName: "Ana" });
 
     expect(res.status).toBe(201);
-    expect(res.body.user).toMatchObject({ email, displayName: "Ana", avatar: { hat: "straw" } });
+    expect(res.body).toMatchObject({ emailVerificationRequired: true, user: { email, displayName: "Ana", avatar: { hat: "straw" } } });
     expect(JSON.stringify(res.body)).not.toMatch(/passwordHash|scrypt/);
-    expect(sessionCookie(res)).toMatch(/HttpOnly/i);
-    expect(sessionCookie(res)).toMatch(/SameSite=Lax/i);
-
-    // o cookie recebido já autentica
-    const me = await request(app).get("/auth/me").set("Cookie", sessionCookie(res)!.split(";")[0]);
-    expect(me.status).toBe(200);
-    expect(me.body.user.email).toBe(email);
+    expect(sessionCookie(res)).toBeUndefined();
+    expect((await request(app).get("/auth/me")).status).toBe(401);
   });
 
-  it("a conta nasce com o save inicial (1 terreno e sementes) e o token só é guardado em hash", async () => {
+  it("a conta nasce com o save inicial (1 terreno e sementes), e-mail não confirmado e um código pendente", async () => {
     const email = uniqueEmail("save");
-    const res = await request(app).post("/auth/register").send({ email, password: PASSWORD, displayName: "Bia" });
-    const token = sessionCookie(res)!.split(";")[0].replace("dh_session=", "");
+    await request(app).post("/auth/register").send({ email, password: PASSWORD, displayName: "Bia" });
 
-    const user = await prisma.user.findUniqueOrThrow({ where: { email }, include: { save: { include: { plots: true, inventory: true } }, sessions: true } });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      include: { save: { include: { plots: true, inventory: true } }, sessions: true, emailVerifications: true },
+    });
     expect(user.save?.plots).toHaveLength(1);
     expect(user.save?.inventory.length).toBeGreaterThan(0);
     expect(user.passwordHash.startsWith("scrypt$")).toBe(true);
-    expect(user.sessions[0].tokenHash).toBe(sha256(token));
-    expect(user.sessions[0].tokenHash).not.toBe(token);
+    expect(user.emailVerifiedAt).toBeNull();
+    expect(user.sessions).toHaveLength(0);
+    expect(user.emailVerifications).toHaveLength(1);
+    expect(user.emailVerifications[0].codeHash).toMatch(/^[0-9a-f]{64}$/); // HMAC, nunca o código
   });
 
   it("e-mail repetido: 409 EMAIL_TAKEN (e maiúsculas/espaços não escapam da checagem)", async () => {
@@ -178,6 +179,112 @@ describe("PATCH /auth/me", () => {
 
   it("sem login: 401", async () => {
     expect((await request(app).patch("/auth/me").send({ displayName: "Zé" })).status).toBe(401);
+  });
+});
+
+describe("confirmação de e-mail", () => {
+  const PASS = "senha-1234";
+  const signUp = async (tag: string) => {
+    const email = uniqueEmail(tag);
+    await register({ email, password: PASS, displayName: "Novo" }); // pelo service: o endpoint tem rate limit de cadastro
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    return { email, user };
+  };
+  // Código conhecido, gravado direto no banco (o e-mail real só vai para o log)
+  const seedCode = (userId: string, code = "123456") => emailVerifications.replaceCode(userId, hmac(`${userId}:${code}`), new Date(Date.now() + 15 * 60_000));
+
+  it("login antes de confirmar: 403 EMAIL_NOT_VERIFIED, sem cookie", async () => {
+    const { email } = await signUp("ver-login");
+    const res = await request(app).post("/auth/login").send({ email, password: PASS });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ code: "EMAIL_NOT_VERIFIED" });
+    expect(sessionCookie(res)).toBeUndefined();
+  });
+
+  it("senha errada numa conta não confirmada: 401, igual a qualquer conta (não revela a conta)", async () => {
+    const { email } = await signUp("ver-wrongpass");
+    const res = await request(app).post("/auth/login").send({ email, password: "errada-123" });
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("código certo: 200, confirma o e-mail, abre a sessão (cookie httpOnly) e o código não vale duas vezes", async () => {
+    const { email, user } = await signUp("ver-ok");
+    await seedCode(user.id);
+
+    const res = await request(app).post("/auth/verify-email").send({ email, code: "123456" });
+    expect(res.status).toBe(200);
+    expect(res.body.user.email).toBe(email);
+    expect(sessionCookie(res)).toMatch(/HttpOnly/i);
+    expect(sessionCookie(res)).toMatch(/SameSite=Lax/i);
+
+    const me = await request(app).get("/auth/me").set("Cookie", sessionCookie(res)!.split(";")[0]);
+    expect(me.status).toBe(200);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).not.toBeNull();
+
+    // já confirmada: o mesmo código não abre outra sessão
+    expect((await request(app).post("/auth/verify-email").send({ email, code: "123456" })).status).toBe(400);
+    // e o login normal passa a funcionar
+    expect((await request(app).post("/auth/login").send({ email, password: PASS })).status).toBe(200);
+  });
+
+  it("código errado: 400 INVALID_VERIFICATION_CODE, tentativa contada, nada confirmado", async () => {
+    const { email, user } = await signUp("ver-wrong");
+    await seedCode(user.id);
+    const res = await request(app).post("/auth/verify-email").send({ email, code: "000000" });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ code: "INVALID_VERIFICATION_CODE", error: "Código inválido ou expirado" });
+    expect(sessionCookie(res)).toBeUndefined();
+    expect((await prisma.emailVerification.findFirstOrThrow({ where: { userId: user.id }, orderBy: { createdAt: "desc" } })).attempts).toBe(1);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).toBeNull();
+  });
+
+  it("depois de 5 erros, nem o código certo funciona mais", async () => {
+    const { email, user } = await signUp("ver-brute");
+    await seedCode(user.id);
+    for (let i = 0; i < 5; i++) await request(app).post("/auth/verify-email").send({ email, code: "000000" });
+    const res = await request(app).post("/auth/verify-email").send({ email, code: "123456" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_VERIFICATION_CODE");
+  });
+
+  it("código vencido: 400", async () => {
+    const { email, user } = await signUp("ver-expired");
+    await seedCode(user.id);
+    await prisma.emailVerification.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect((await request(app).post("/auth/verify-email").send({ email, code: "123456" })).status).toBe(400);
+  });
+
+  it("e-mail inexistente: o mesmo 400 de código errado", async () => {
+    const res = await request(app).post("/auth/verify-email").send({ email: uniqueEmail("ghost"), code: "123456" });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_VERIFICATION_CODE");
+  });
+
+  it("formato do código: 400 de validação", async () => {
+    const { email } = await signUp("ver-format");
+    const res = await request(app).post("/auth/verify-email").send({ email, code: "abc" });
+    expect(res.body).toMatchObject({ code: "VALIDATION_ERROR", error: "O código tem 6 dígitos" });
+  });
+
+  it("reenviar: 204 para conta pendente, inexistente e já confirmada (não revela nada); só o pendente ganha código novo", async () => {
+    const pending = await signUp("ver-resend");
+    const before = await prisma.emailVerification.count({ where: { userId: pending.user.id } });
+    // o cadastro acabou de gerar um código: dentro do cooldown, o reenvio é ignorado
+    expect((await request(app).post("/auth/resend-verification").send({ email: pending.email })).status).toBe(204);
+    expect(await prisma.emailVerification.count({ where: { userId: pending.user.id } })).toBe(before);
+
+    // fora do cooldown, gera um código novo e invalida o anterior
+    await prisma.emailVerification.updateMany({ where: { userId: pending.user.id }, data: { createdAt: new Date(Date.now() - 61_000) } });
+    expect((await request(app).post("/auth/resend-verification").send({ email: pending.email })).status).toBe(204);
+    expect(await prisma.emailVerification.count({ where: { userId: pending.user.id } })).toBe(before + 1);
+    expect(await prisma.emailVerification.count({ where: { userId: pending.user.id, usedAt: null } })).toBe(1);
+
+    const verified = await createUser("ver-already");
+    const verifiedBefore = await prisma.emailVerification.count({ where: { userId: verified.user.id } });
+    expect((await request(app).post("/auth/resend-verification").send({ email: verified.email })).status).toBe(204);
+    expect(await prisma.emailVerification.count({ where: { userId: verified.user.id } })).toBe(verifiedBefore);
+    expect((await request(app).post("/auth/resend-verification").send({ email: uniqueEmail("ghost") })).status).toBe(204);
   });
 });
 

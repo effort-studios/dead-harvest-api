@@ -50,13 +50,15 @@ enum TileState {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique // sempre em minúsculas (CHECK no banco)
-  passwordHash String    @map("password_hash")
-  displayName  String    @map("display_name")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique // sempre em minúsculas (CHECK no banco)
+  passwordHash    String    @map("password_hash")
+  displayName     String    @map("display_name")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz(3)
+  // Quando o e-mail foi confirmado pelo código; null = conta criada mas ainda sem confirmar (não entra)
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
 
   // Avatar: ids das peças (opções em src/game/avatar.ts; o banco confere com CHECK)
   avatarSkin      String @default("light") @map("avatar_skin")
@@ -68,9 +70,10 @@ model User {
   avatarBeard     String @default("none") @map("avatar_beard")
   avatarOutfit    String @default("overalls_blue") @map("avatar_outfit")
 
-  save           Save?
-  sessions       Session[]
-  passwordResets PasswordReset[]
+  save               Save?
+  sessions           Session[]
+  passwordResets     PasswordReset[]
+  emailVerifications EmailVerification[]
 
   @@map("users")
 }
@@ -103,6 +106,21 @@ model PasswordReset {
 
   @@index([userId, createdAt])
   @@map("password_resets")
+}
+
+// Código de confirmação do e-mail no cadastro (mesma mecânica do PasswordReset)
+model EmailVerification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @map("code_hash") // HMAC do código; o código em si nunca é guardado
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  attempts  Int       @default(0) // erros de código; passou do limite, o pedido morre
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@map("email_verifications")
 }
 
 // ---------- Catálogo ----------
