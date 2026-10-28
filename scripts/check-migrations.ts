@@ -32,7 +32,7 @@ async function main() {
       "--shadow-database-url", shadowUrl.toString(),
       "--exit-code",
     ],
-    { stdio: "inherit" },
+    { stdio: "inherit", shell: process.platform === "win32" }, // no Windows o npx é um .cmd
   );
 }
 

@@ -1,0 +1,56 @@
+name: CI
+
+# Roda em todo PR para a main e em todo push na main. Para impedir o merge quando falhar, marque o job
+# "Checks" como obrigatório em Settings > Branches (regra da main).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: deadharvest
+          POSTGRES_PASSWORD: deadharvest
+          POSTGRES_DB: deadharvest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U deadharvest"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://deadharvest:deadharvest@localhost:5432/deadharvest
+      WEB_URL: http://localhost:5173
+      AUTH_SECRET: segredo-de-ci-com-mais-de-32-caracteres-aleatorios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Migrations batem com o schema
+        run: npm run check:migrations
+      - name: Build
+        run: npm run build
+      - name: Testes (unitários e de integração)
+        run: npm test
