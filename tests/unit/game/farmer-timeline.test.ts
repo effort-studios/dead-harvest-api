@@ -23,8 +23,8 @@ describe("clampWalk", () => {
     expect(to.row).toBeCloseTo(2 * 1.25 + 0.5); // 2 células/s x 1s x tolerância + folga
   });
 
-  it("limita o crédito de tempo parado", () => {
-    expect(clampWalk(from, { row: 100, col: 0 }, 10 * 60 * 1000).row).toBeCloseTo(2 * 3 * 1.25 + 0.5);
+  it("limita o crédito de um trecho muito longo sem avisos", () => {
+    expect(clampWalk(from, { row: 1000, col: 0 }, 10 * 60 * 1000).row).toBeCloseTo(2 * 60 * 1.25 + 0.5);
   });
 
   it("tempo negativo (relógio voltou) conta como zero, só com a folga fixa", () => {

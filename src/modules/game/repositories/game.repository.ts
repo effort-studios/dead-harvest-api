@@ -216,10 +216,11 @@ export const deleteJobs = (tx: Tx, saveId: string, ids?: string[]) =>
   tx.farmJob.deleteMany({ where: { saveId, ...(ids ? { id: { in: ids } } : {}) } });
 
 export const setFarmer = (tx: Tx, saveId: string, farmer: { row: number; col: number; freeAt: Date | null }) =>
-  tx.save.update({ where: { id: saveId }, data: { farmerRow: farmer.row, farmerCol: farmer.col, farmerFreeAt: farmer.freeAt } });
+  tx.save.update({ where: { id: saveId }, data: { farmerRow: farmer.row, farmerCol: farmer.col, farmerFreeAt: farmer.freeAt, farmerMovedAt: null } }); // a fila manda: acaba o andar livre
 
-// Andar livre: guarda a posição que o cliente avisou e quando (o próximo aviso é conferido contra este horário)
-export const setFarmerWalk = (tx: Tx, saveId: string, walk: { row: number; col: number; movedAt: Date }) =>
+// Andar livre: guarda a posição que o cliente avisou e quando (o próximo aviso é conferido contra este horário).
+// movedAt nulo = não está andando livre.
+export const setFarmerWalk = (tx: Tx, saveId: string, walk: { row: number; col: number; movedAt: Date | null }) =>
   tx.save.update({ where: { id: saveId }, data: { farmerRow: walk.row, farmerCol: walk.col, farmerFreeAt: null, farmerMovedAt: walk.movedAt } });
 
 // Pedidos de coleta pendentes num prédio (o fazendeiro está indo até ele)

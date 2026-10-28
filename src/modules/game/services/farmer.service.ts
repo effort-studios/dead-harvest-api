@@ -131,13 +131,19 @@ export const cancel = (userId: string, jobId?: string) =>
 
 // Andar livre (WASD): o cliente anda sozinho e avisa de onde está. Com fila de tarefas, o servidor manda e
 // o aviso é ignorado (o cliente cancela a fila antes de andar). Sem fila, a posição vale, limitada pela
-// velocidade desde o último aviso, e o fazendeiro fica parado ali.
+// velocidade desde o "start" (ou o último aviso), e o fazendeiro fica parado ali.
+// start: começou a andar, só marca o horário. move: aviso no meio do caminho. end: parou (acaba o andar livre).
 export const walk = (userId: string, input: WalkInput) =>
   withFarmer(userId, async (tx, save, now) => {
     if ((await repo.findJobs(tx, save.id)).length > 0) return;
+    const from = cellOf(save);
+    if (input.phase === "start") {
+      await repo.setFarmerWalk(tx, save.id, { ...from, movedAt: new Date(now) });
+      return;
+    }
     const elapsed = save.farmerMovedAt ? now - save.farmerMovedAt.getTime() : 0;
-    const to = clampWalk(cellOf(save), { row: input.row, col: input.col }, elapsed);
-    await repo.setFarmerWalk(tx, save.id, { ...to, movedAt: new Date(now) });
+    const to = clampWalk(from, { row: input.row, col: input.col }, elapsed);
+    await repo.setFarmerWalk(tx, save.id, { ...to, movedAt: input.phase === "end" ? null : new Date(now) });
   });
 
 // Põe em dia a fila de um jogador (chamado pelo worker)
