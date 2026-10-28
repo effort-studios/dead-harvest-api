@@ -1,3 +1,4 @@
+import { config } from "../../../config";
 import * as gameRepository from "../repositories/game.repository";
 import { BARN_FOOTPRINT, WELL_FOOTPRINT } from "../utils/layout";
 import {
@@ -30,6 +31,7 @@ async function loadCatalog() {
   const { crops, items, trees, machines, animals } = await gameRepository.findCatalogData();
   return {
     gridSize: GRID_SIZE,
+    farmerWalkSpeed: config.farmerWalkSpeed, // células por segundo (o cliente anda livre nessa velocidade)
     dayLengthSeconds: DAY_LENGTH_SECONDS,
     dayStartSeconds: DAY_START_SECONDS,
     plotPrice: { base: PLOT_BASE_PRICE, factor: PLOT_PRICE_FACTOR },

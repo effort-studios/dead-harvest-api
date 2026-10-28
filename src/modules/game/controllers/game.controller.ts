@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../../shared/http/asyncHandler";
 import { currentUser } from "../../auth/middlewares/require-auth";
-import type { EnqueueInput, MoveBuildingInput } from "../dto/game.dto";
+import type { EnqueueInput, MoveBuildingInput, WalkInput } from "../dto/game.dto";
 import * as actions from "../services/game-actions.service";
 import * as farmer from "../services/farmer.service";
 import * as production from "../services/production.service";
@@ -21,6 +21,10 @@ export const state = asyncHandler(async (_req, res) => {
 // Arar, plantar e colher não são ações imediatas: viram tarefas do fazendeiro, que o servidor executa uma de cada vez
 export const enqueue = asyncHandler<Params, EnqueueInput>(async (req, res) => {
   res.json(await farmer.enqueue(currentUser(res).id, req.body));
+});
+
+export const walk = asyncHandler<Params, WalkInput>(async (req, res) => {
+  res.json(await farmer.walk(currentUser(res).id, req.body));
 });
 
 export const cancelJobs = asyncHandler(async (_req, res) => {

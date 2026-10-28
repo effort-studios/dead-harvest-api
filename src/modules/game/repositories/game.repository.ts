@@ -7,7 +7,7 @@ import { GRID_SIZE } from "../utils/game.constants";
 
 export type Tx = Prisma.TransactionClient;
 export type Db = Tx | typeof prisma;
-export type LockedSave = { id: string; money: number; farmerRow: number; farmerCol: number; farmerFreeAt: Date | null; barnCapacity: number; barnRow: number | null; barnCol: number | null;
+export type LockedSave = { id: string; money: number; farmerRow: number; farmerCol: number; farmerFreeAt: Date | null; farmerMovedAt: Date | null; barnCapacity: number; barnRow: number | null; barnCol: number | null;
   canCharges: number | null; wellRow: number | null; wellCol: number | null;
 };
 export type TilePos = { row: number; col: number };
@@ -22,7 +22,7 @@ export const transaction = <T>(fn: (tx: Tx) => Promise<T>) => prisma.$transactio
 // Trava a linha do save (FOR UPDATE): ações ao mesmo tempo (cliques rápidos, duas abas, dois aparelhos)
 // entram em fila e cada uma vê o resultado da anterior.
 export async function lockSave(tx: Tx, userId: string): Promise<LockedSave | null> {
-  const [save] = await tx.$queryRaw<LockedSave[]>`SELECT id, money, farmer_row AS "farmerRow", farmer_col AS "farmerCol", farmer_free_at AS "farmerFreeAt", barn_capacity AS "barnCapacity", barn_row AS "barnRow", barn_col AS "barnCol", can_charges AS "canCharges", well_row AS "wellRow", well_col AS "wellCol" FROM saves WHERE user_id = ${userId}::uuid FOR UPDATE`;
+  const [save] = await tx.$queryRaw<LockedSave[]>`SELECT id, money, farmer_row AS "farmerRow", farmer_col AS "farmerCol", farmer_free_at AS "farmerFreeAt", farmer_moved_at AS "farmerMovedAt", barn_capacity AS "barnCapacity", barn_row AS "barnRow", barn_col AS "barnCol", can_charges AS "canCharges", well_row AS "wellRow", well_col AS "wellCol" FROM saves WHERE user_id = ${userId}::uuid FOR UPDATE`;
   return save ?? null;
 }
 
@@ -217,6 +217,10 @@ export const deleteJobs = (tx: Tx, saveId: string, ids?: string[]) =>
 
 export const setFarmer = (tx: Tx, saveId: string, farmer: { row: number; col: number; freeAt: Date | null }) =>
   tx.save.update({ where: { id: saveId }, data: { farmerRow: farmer.row, farmerCol: farmer.col, farmerFreeAt: farmer.freeAt } });
+
+// Andar livre: guarda a posição que o cliente avisou e quando (o próximo aviso é conferido contra este horário)
+export const setFarmerWalk = (tx: Tx, saveId: string, walk: { row: number; col: number; movedAt: Date }) =>
+  tx.save.update({ where: { id: saveId }, data: { farmerRow: walk.row, farmerCol: walk.col, farmerFreeAt: null, farmerMovedAt: walk.movedAt } });
 
 // Pedidos de coleta pendentes num prédio (o fazendeiro está indo até ele)
 // Pedidos pendentes em que o fazendeiro vai até o prédio (coletar, ou encher o regador no poço)

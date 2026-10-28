@@ -61,4 +61,8 @@ export const enqueueSchema = z.discriminatedUnion("action", [
 ]);
 export type EnqueueInput = z.infer<typeof enqueueSchema>;
 
+// Andar livre: para onde o cliente diz que o fazendeiro chegou (com fração). O servidor limita pela velocidade.
+export const walkSchema = z.object({ row: z.number().min(-100).max(100), col: z.number().min(-100).max(100) });
+export type WalkInput = z.infer<typeof walkSchema>;
+
 export const jobParams = z.object({ jobId: z.string().uuid() });

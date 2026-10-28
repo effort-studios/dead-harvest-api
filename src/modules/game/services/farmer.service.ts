@@ -1,8 +1,8 @@
 import { AppError, BadRequestError, NotFoundError, UnprocessableError } from "../../../shared/errors/AppError";
-import type { EnqueueInput } from "../dto/game.dto";
+import type { EnqueueInput, WalkInput } from "../dto/game.dto";
 import type { GameState } from "../entities/game-state";
 import * as repo from "../repositories/game.repository";
-import { distance, positionAt, schedule, type Cell } from "../utils/farmer-timeline";
+import { clampWalk, distance, positionAt, schedule, type Cell } from "../utils/farmer-timeline";
 import { GRID_SIZE, MAX_FARM_JOBS } from "../utils/game.constants";
 import { barnCollectTarget, machineCollectTarget, wellTarget } from "../utils/layout";
 import * as actions from "./game-actions.service";
@@ -127,6 +127,17 @@ export const cancel = (userId: string, jobId?: string) =>
     const remaining = jobId ? jobs.length - 1 : 0;
     await repo.deleteJobs(tx, save.id, jobId ? [jobId] : undefined);
     await repo.setFarmer(tx, save.id, { ...where, freeAt: remaining > 0 ? new Date(now) : null });
+  });
+
+// Andar livre (WASD): o cliente anda sozinho e avisa de onde está. Com fila de tarefas, o servidor manda e
+// o aviso é ignorado (o cliente cancela a fila antes de andar). Sem fila, a posição vale, limitada pela
+// velocidade desde o último aviso, e o fazendeiro fica parado ali.
+export const walk = (userId: string, input: WalkInput) =>
+  withFarmer(userId, async (tx, save, now) => {
+    if ((await repo.findJobs(tx, save.id)).length > 0) return;
+    const elapsed = save.farmerMovedAt ? now - save.farmerMovedAt.getTime() : 0;
+    const to = clampWalk(cellOf(save), { row: input.row, col: input.col }, elapsed);
+    await repo.setFarmerWalk(tx, save.id, { ...to, movedAt: new Date(now) });
   });
 
 // Põe em dia a fila de um jogador (chamado pelo worker)
