@@ -12,6 +12,7 @@ import {
   buySeedSchema,
   enqueueSchema,
   jobParams,
+  walkSchema,
   sellItemSchema,
   startRecipeSchema,
 } from "./dto/game.dto";
@@ -24,6 +25,7 @@ gameModule.get("/game/catalog", controller.catalog);
 gameModule.get("/game/state", requireAuth, controller.state);
 
 gameModule.post("/game/jobs", requireAuth, validate({ body: enqueueSchema, message: invalidAction }), controller.enqueue);
+gameModule.post("/game/farmer/position", requireAuth, validate({ body: walkSchema, message: invalidAction }), controller.walk);
 gameModule.delete("/game/jobs", requireAuth, controller.cancelJobs);
 gameModule.delete("/game/jobs/:jobId", requireAuth, validate({ params: jobParams, message: "Tarefa inválida" }), controller.cancelJob);
 gameModule.post("/game/seeds/buy", requireAuth, validate({ body: buySeedSchema, message: invalidAction }), controller.buySeed);
