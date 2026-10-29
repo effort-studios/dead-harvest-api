@@ -464,6 +464,43 @@ describe("concorrência (o save é travado com FOR UPDATE)", () => {
     expect(res.body.farmer.jobs.length).toBeLessThanOrEqual(2);
   });
 
+  it("regar mais tiles do que cargas só enfileira o que o regador aguenta", async () => {
+    const p = await newPlayer("water-cap");
+    await prisma.save.update({ where: { id: p.save.id }, data: { canCharges: 2 } });
+    await p.till([0, 0], [0, 1], [0, 2], [0, 3]);
+    const res = await p.job({ action: "water", x: 0, y: 0, tiles: tiles([0, 0], [0, 1], [0, 2], [0, 3]) });
+    expect(res.status).toBe(200);
+    expect(res.body.canCharges).toBe(0);
+    const watered = (await p.state()).plots[0].grid[0].filter((t: { watered: boolean }) => t.watered);
+    expect(watered).toHaveLength(2);
+
+    const empty = await p.job({ action: "water", x: 0, y: 0, tiles: tiles([0, 2]) });
+    expect(empty.status).toBe(422);
+    expect(empty.body.code).toBe("CAN_EMPTY");
+  });
+
+  it("pedido que não tem como dar certo nem faz o fazendeiro andar", async () => {
+    const p = await newPlayer("impossible");
+    const start = (await p.state()).farmer;
+    await p.plant("pumpkin", [3, 3]); // terra sem arar
+    await p.harvest([3, 3]); // nada plantado
+    expect((await p.state()).farmer).toEqual(start);
+
+    await p.till([4, 4]);
+    const moved = (await p.state()).farmer;
+    expect(moved).not.toEqual(start);
+    await p.till([4, 4]); // já arado
+    expect((await p.state()).farmer).toEqual(moved);
+  });
+
+  it("adubar sem adubo é recusado ao enfileirar", async () => {
+    const p = await newPlayer("fert-cap");
+    await p.till([0, 0]);
+    const res = await p.job({ action: "fertilize", x: 0, y: 0, tiles: tiles([0, 0]) });
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("NO_FERTILIZER");
+  });
+
   it("colher a mesma árvore em paralelo dá as frutas uma vez só", async () => {
     const p = await newPlayer("race-tree");
     const t = catalog.trees[0];
