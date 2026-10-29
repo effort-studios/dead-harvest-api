@@ -64,17 +64,27 @@ async function advance(tx: repo.Tx, save: repo.LockedSave, now: number): Promise
 function run(tx: repo.Tx, save: repo.LockedSave, job: repo.FarmJobRow, now: number) {
   const tile = { x: job.plotX!, y: job.plotY!, tiles: [{ row: job.row!, col: job.col! }] };
   const action =
-    job.action === "till" ? actions.tillAction(tile)
-    : job.action === "untill" ? actions.untillAction(tile)
-    : job.action === "plant" ? actions.plantAction({ ...tile, cropId: job.cropId! })
-    : job.action === "harvest" ? actions.harvestAction(tile)
-    : job.action === "fertilize" ? actions.fertilizeAction(tile)
-    : job.action === "water" ? actions.waterAction(tile)
-    : job.action === "refill_can" ? production.refillCanAction()
-    : job.action === "collect_machine" ? production.collectMachineAction(job.machineId!)
-    : job.action === "collect_barn" ? production.collectBarnAction()
-    : job.action === "move" ? async () => {} // só andar: chegar já é o que o pedido faz
-    : actions.harvestTreeAction(job.treeId!);
+    job.action === "till"
+      ? actions.tillAction(tile)
+      : job.action === "untill"
+        ? actions.untillAction(tile)
+        : job.action === "plant"
+          ? actions.plantAction({ ...tile, cropId: job.cropId! })
+          : job.action === "harvest"
+            ? actions.harvestAction(tile)
+            : job.action === "fertilize"
+              ? actions.fertilizeAction(tile)
+              : job.action === "water"
+                ? actions.waterAction(tile)
+                : job.action === "refill_can"
+                  ? production.refillCanAction()
+                  : job.action === "collect_machine"
+                    ? production.collectMachineAction(job.machineId!)
+                    : job.action === "collect_barn"
+                      ? production.collectBarnAction()
+                      : job.action === "move"
+                        ? async () => {} // só andar: chegar já é o que o pedido faz
+                        : actions.harvestTreeAction(job.treeId!);
   return action(tx, save, now);
 }
 
@@ -83,7 +93,17 @@ function run(tx: repo.Tx, save: repo.LockedSave, job: repo.FarmJobRow, now: numb
 // Estado do jogo com a fila em dia (é o que GET /game/state devolve)
 export const refresh = (userId: string) => withFarmer(userId, async () => {});
 
-type JobKeyed = { action: string; plotX: number | null; plotY: number | null; row: number | null; col: number | null; treeId: string | null; machineId: string | null; targetRow: number; targetCol: number };
+type JobKeyed = {
+  action: string;
+  plotX: number | null;
+  plotY: number | null;
+  row: number | null;
+  col: number | null;
+  treeId: string | null;
+  machineId: string | null;
+  targetRow: number;
+  targetCol: number;
+};
 const keyOf = (j: JobKeyed) =>
   `${j.action}|${j.action === "move" ? `${j.targetRow},${j.targetCol}` : (j.treeId ?? j.machineId ?? `${j.plotX},${j.plotY},${j.row},${j.col}`)}`;
 
@@ -107,7 +127,7 @@ export const enqueue = (userId: string, input: EnqueueInput) =>
     // fila vazia: o primeiro pedido começa agora
     const freeAt = pending.length === 0 ? new Date(now) : save.farmerFreeAt;
     if (pending.length === 0) await repo.setFarmer(tx, save.id, { row: save.farmerRow, col: save.farmerCol, freeAt });
-    await advance(tx, { ...save, farmerFreeAt: freeAt }, now) // tempos zerados (testes): já executa
+    await advance(tx, { ...save, farmerFreeAt: freeAt }, now); // tempos zerados (testes): já executa
   });
 
 // Cancela a fila toda ou um pedido só. Se o pedido em andamento é cancelado, o fazendeiro para onde está.
