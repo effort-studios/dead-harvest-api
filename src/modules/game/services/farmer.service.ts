@@ -95,7 +95,8 @@ export const enqueue = (userId: string, input: EnqueueInput) =>
 
     // o mesmo tile/árvore não entra duas vezes na fila (cliques repetidos)
     const queued = new Set(pending.map(keyOf));
-    const fresh = candidates.filter((j) => !queued.has(keyOf(j)));
+    let fresh = candidates.filter((j) => !queued.has(keyOf(j)));
+    if (input.action === "plant") fresh = await withinSeeds(tx, save.id, input.cropId, pending, fresh);
     if (fresh.length === 0) return;
     if (pending.length + fresh.length > MAX_FARM_JOBS) {
       throw new UnprocessableError(`A fila do fazendeiro aguenta no máximo ${MAX_FARM_JOBS} tarefas`, "FARM_QUEUE_FULL");
@@ -201,6 +202,18 @@ async function toJobs(tx: repo.Tx, save: repo.LockedSave, input: EnqueueInput): 
     targetRow: input.y * GRID_SIZE + t.row,
     targetCol: input.x * GRID_SIZE + t.col,
   }));
+}
+
+// Só enfileira plantio para as sementes que sobram (estoque menos o que já está na fila), senão o
+// fazendeiro gastaria tempo andando e gesticulando por pedidos que vão ser recusados sem semente
+async function withinSeeds(tx: repo.Tx, saveId: string, cropId: string, pending: repo.FarmJobRow[], fresh: repo.NewFarmJob[]) {
+  const crop = await repo.findCrop(tx, cropId);
+  if (!crop) throw new BadRequestError("Planta desconhecida", "UNKNOWN_CROP");
+  const have = await repo.itemCount(tx, saveId, crop.seedItemId);
+  const queuedPlants = pending.filter((j) => j.action === "plant" && j.cropId === cropId).length;
+  const left = have - queuedPlants;
+  if (fresh.length > 0 && left <= 0) throw new UnprocessableError(`Você não tem sementes de ${crop.name.toLowerCase()}`, "NO_SEEDS");
+  return fresh.slice(0, Math.max(left, 0));
 }
 
 // Ordem de trabalho: sempre o mais perto de onde ele está (vizinho mais próximo)
