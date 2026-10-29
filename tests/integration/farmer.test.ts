@@ -240,7 +240,7 @@ describe("fila do fazendeiro com tempo", () => {
     expect(await p.tilled()).toBe(1); // sobrou só o plantado
 
     const planted = await job(0, 1);
-    at(planted.body.farmer.jobs[0].endsAt - T + 1);
-    expect((await p.state()).plots[0].grid[0][1].state).toBe("planted"); // recusado: continua plantado
+    expect(planted.body.farmer.jobs).toEqual([]); // com planta não dá: nem entra na fila
+    expect((await p.state()).plots[0].grid[0][1].state).toBe("planted");
   });
 });

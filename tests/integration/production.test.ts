@@ -296,7 +296,9 @@ describe("adubo", () => {
 
     expect((await job({ action: "fertilize" })).body.plots[0].grid[0][0].fertilized).toBe(false); // terra: descartado
     await job({ action: "till" });
-    expect((await job({ action: "fertilize" })).body.plots[0].grid[0][0].fertilized).toBe(false); // sem adubo
+    const noFertilizer = await job({ action: "fertilize" });
+    expect(noFertilizer.status).toBe(422);
+    expect(noFertilizer.body.code).toBe("NO_FERTILIZER");
     await p.give("fertilizer", 2);
     const fertilized = await job({ action: "fertilize" });
     expect(fertilized.body.plots[0].grid[0][0]).toEqual({ state: "tilled", crop: null, growth: 0, fertilized: true, watered: false });

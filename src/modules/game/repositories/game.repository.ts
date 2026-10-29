@@ -188,6 +188,8 @@ export const setBarnPosition = (tx: Tx, saveId: string, row: number, col: number
 
 // ---------- Regador e poço ----------
 
+export const findCanCharges = async (tx: Tx, saveId: string) =>
+  (await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { canCharges: true } })).canCharges;
 export const setCanCharges = (tx: Tx, saveId: string, charges: number) => tx.save.update({ where: { id: saveId }, data: { canCharges: charges } });
 
 export const setWellPosition = (tx: Tx, saveId: string, at: TilePos) => tx.save.update({ where: { id: saveId }, data: { wellRow: at.row, wellCol: at.col } });

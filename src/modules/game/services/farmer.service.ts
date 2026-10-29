@@ -48,6 +48,8 @@ async function advance(tx: repo.Tx, save: repo.LockedSave, now: number): Promise
     } catch (err) {
       if (!(err instanceof AppError)) throw err;
     }
+    // o pedido pode ter gasto ou enchido o regador: o próximo precisa ver as cargas de agora, não as de antes
+    save = { ...save, canCharges: await repo.findCanCharges(tx, save.id) };
     done.push(job.id);
     at = to;
     startsAt = s.endsAt;
