@@ -47,7 +47,9 @@ describe("POST /auth/register", () => {
 
   it("e-mail repetido: 409 EMAIL_TAKEN (e maiúsculas/espaços não escapam da checagem)", async () => {
     const { email } = await createUser("dup");
-    const res = await request(app).post("/auth/register").send({ email: `  ${email.toUpperCase()} `, password: PASSWORD, displayName: "Outra" });
+    const res = await request(app)
+      .post("/auth/register")
+      .send({ email: `  ${email.toUpperCase()} `, password: PASSWORD, displayName: "Outra" });
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ code: "EMAIL_TAKEN", error: "Já existe uma conta com este e-mail" });
   });
@@ -81,7 +83,9 @@ describe("POST /auth/login", () => {
   it("senha errada e e-mail inexistente dão exatamente a mesma resposta 401", async () => {
     const { email } = await createUser("wrongpw");
     const wrong = await request(app).post("/auth/login").send({ email, password: "errada-123" });
-    const ghost = await request(app).post("/auth/login").send({ email: uniqueEmail("ghost"), password: "errada-123" });
+    const ghost = await request(app)
+      .post("/auth/login")
+      .send({ email: uniqueEmail("ghost"), password: "errada-123" });
     for (const res of [wrong, ghost]) {
       expect(res.status).toBe(401);
       expect(res.body).toMatchObject({ error: "E-mail ou senha inválidos", code: "INVALID_CREDENTIALS" });
@@ -256,7 +260,9 @@ describe("confirmação de e-mail", () => {
   });
 
   it("e-mail inexistente: o mesmo 400 de código errado", async () => {
-    const res = await request(app).post("/auth/verify-email").send({ email: uniqueEmail("ghost"), code: "123456" });
+    const res = await request(app)
+      .post("/auth/verify-email")
+      .send({ email: uniqueEmail("ghost"), code: "123456" });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_VERIFICATION_CODE");
   });
@@ -284,7 +290,13 @@ describe("confirmação de e-mail", () => {
     const verifiedBefore = await prisma.emailVerification.count({ where: { userId: verified.user.id } });
     expect((await request(app).post("/auth/resend-verification").send({ email: verified.email })).status).toBe(204);
     expect(await prisma.emailVerification.count({ where: { userId: verified.user.id } })).toBe(verifiedBefore);
-    expect((await request(app).post("/auth/resend-verification").send({ email: uniqueEmail("ghost") })).status).toBe(204);
+    expect(
+      (
+        await request(app)
+          .post("/auth/resend-verification")
+          .send({ email: uniqueEmail("ghost") })
+      ).status,
+    ).toBe(204);
   });
 });
 
@@ -292,7 +304,9 @@ describe("recuperação de senha", () => {
   it("forgot-password: 204 para e-mail existente e inexistente (não revela quem tem conta)", async () => {
     const { email } = await createUser("forgot");
     const known = await request(app).post("/auth/forgot-password").send({ email });
-    const unknown = await request(app).post("/auth/forgot-password").send({ email: uniqueEmail("nobody") });
+    const unknown = await request(app)
+      .post("/auth/forgot-password")
+      .send({ email: uniqueEmail("nobody") });
     expect(known.status).toBe(204);
     expect(unknown.status).toBe(204);
     expect(known.text).toBe(unknown.text);
@@ -340,7 +354,9 @@ describe("recuperação de senha", () => {
   });
 
   it("e-mail inexistente: o mesmo 400 de código errado", async () => {
-    const res = await request(app).post("/auth/reset-password").send({ email: uniqueEmail("ghost"), code: "123456", newPassword: "nova-senha-1" });
+    const res = await request(app)
+      .post("/auth/reset-password")
+      .send({ email: uniqueEmail("ghost"), code: "123456", newPassword: "nova-senha-1" });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_RESET_CODE");
   });

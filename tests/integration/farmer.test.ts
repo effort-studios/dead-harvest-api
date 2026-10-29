@@ -142,7 +142,11 @@ describe("fila do fazendeiro com tempo", () => {
   it("ordem: sempre o tile mais perto de onde ele está", async () => {
     const p = await newPlayer("order");
     const res = await p.till([9, 9], [0, 5], [0, 0]);
-    expect(res.body.farmer.jobs.map((j: { row: number; col: number }) => [j.row, j.col])).toEqual([[0, 0], [0, 5], [9, 9]]);
+    expect(res.body.farmer.jobs.map((j: { row: number; col: number }) => [j.row, j.col])).toEqual([
+      [0, 0],
+      [0, 5],
+      [9, 9],
+    ]);
   });
 
   it("a mesma tarefa não entra duas vezes na fila", async () => {
@@ -182,7 +186,17 @@ describe("fila do fazendeiro com tempo", () => {
     const corn = (await p.api.get("/game/catalog")).body.crops.find((c: { id: string }) => c.id === "corn");
     const plot = await prisma.plot.findFirstOrThrow({ where: { save: { userId: p.user.id } } });
     // planta ainda verde (falta 1s depois do pedido, mas ele leva ~4s para chegar)
-    await prisma.tile.create({ data: { plotId: plot.id, row: 0, col: 0, state: "planted", cropId: "corn", plantedAt: new Date(T - (corn.growSeconds - 1) * 1000), growthAt: new Date(T - (corn.growSeconds - 1) * 1000) } });
+    await prisma.tile.create({
+      data: {
+        plotId: plot.id,
+        row: 0,
+        col: 0,
+        state: "planted",
+        cropId: "corn",
+        plantedAt: new Date(T - (corn.growSeconds - 1) * 1000),
+        growthAt: new Date(T - (corn.growSeconds - 1) * 1000),
+      },
+    });
 
     const queued = await p.api.post("/game/jobs", { action: "harvest", x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
     expect(queued.body.inventory[corn.harvestItemId]).toBeUndefined(); // no clique ainda não estava madura

@@ -9,11 +9,34 @@ import { plotPrice } from "../../../src/modules/game/utils/game.constants";
 
 const repo = vi.mocked(gameRepository);
 const tx = { tx: true } as never;
-const SAVE = { id: "save-1", money: 500, farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, barnCapacity: 0, barnRow: null, barnCol: null, canCharges: null as number | null, wellRow: null, wellCol: null };
+const SAVE = {
+  id: "save-1",
+  money: 500,
+  farmerRow: 4,
+  farmerCol: -1.5,
+  farmerFreeAt: null,
+  barnCapacity: 0,
+  barnRow: null,
+  barnCol: null,
+  canCharges: null as number | null,
+  wellRow: null,
+  wellCol: null,
+};
 const T0 = Date.UTC(2026, 0, 1);
 
-const tile = (row: number, col: number, over: Record<string, unknown> = {}) =>
-  ({ row, col, state: "tilled", cropId: null, plantedAt: null, fertilized: false, watered: false, growth: 0, growthAt: null, crop: null, ...over });
+const tile = (row: number, col: number, over: Record<string, unknown> = {}) => ({
+  row,
+  col,
+  state: "tilled",
+  cropId: null,
+  plantedAt: null,
+  fertilized: false,
+  watered: false,
+  growth: 0,
+  growthAt: null,
+  crop: null,
+  ...over,
+});
 const plot = (tiles: ReturnType<typeof tile>[] = []) => ({ id: "plot-1", x: 0, y: 0, tiles }) as never;
 const corn = { id: "corn", name: "Milho", seedItemId: "corn-seed", harvestItemId: "corn_harvest", growSeconds: 60 };
 
@@ -22,7 +45,20 @@ function setup(save: (Pick<typeof SAVE, "id" | "money"> & Partial<typeof SAVE>) 
   repo.transaction.mockImplementation(((fn: (t: never) => unknown) => fn(tx)) as never);
   repo.lockSave.mockResolvedValue(save as never);
   repo.findOwnedMachines.mockResolvedValue([]);
-  repo.findSaveState.mockResolvedValue({ gameStartedAt: new Date(T0), money: 0, plots: [], inventory: [], treeHarvests: [], farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, farmJobs: [], machines: [], barnCapacity: 0, animals: [] } as never);
+  repo.findSaveState.mockResolvedValue({
+    gameStartedAt: new Date(T0),
+    money: 0,
+    plots: [],
+    inventory: [],
+    treeHarvests: [],
+    farmerRow: 4,
+    farmerCol: -1.5,
+    farmerFreeAt: null,
+    farmJobs: [],
+    machines: [],
+    barnCapacity: 0,
+    animals: [],
+  } as never);
 }
 
 beforeEach(() => {
@@ -55,7 +91,14 @@ describe("act (comum a todas as ações)", () => {
 });
 
 describe("till", () => {
-  const input = { x: 0, y: 0, tiles: [{ row: 0, col: 0 }, { row: 0, col: 1 }] };
+  const input = {
+    x: 0,
+    y: 0,
+    tiles: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ],
+  };
 
   it("terreno que o jogador não tem: 404 PLOT_NOT_FOUND", async () => {
     repo.findPlot.mockResolvedValue(null);
@@ -83,7 +126,16 @@ describe("till", () => {
 });
 
 describe("plant", () => {
-  const input = { x: 0, y: 0, cropId: "corn", tiles: [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }] };
+  const input = {
+    x: 0,
+    y: 0,
+    cropId: "corn",
+    tiles: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 0, col: 2 },
+    ],
+  };
 
   it("planta desconhecida: 400 UNKNOWN_CROP", async () => {
     repo.findCrop.mockResolvedValue(null);
@@ -108,7 +160,16 @@ describe("plant", () => {
     repo.findPlot.mockResolvedValue(plot([tile(0, 0), tile(0, 1), tile(0, 2)]));
     repo.itemCount.mockResolvedValue(2);
     await actions.plant("u1", input);
-    expect(repo.plantTiles).toHaveBeenCalledWith(tx, "plot-1", [{ row: 0, col: 0 }, { row: 0, col: 1 }], "corn", new Date(T0));
+    expect(repo.plantTiles).toHaveBeenCalledWith(
+      tx,
+      "plot-1",
+      [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ],
+      "corn",
+      new Date(T0),
+    );
     expect(repo.removeItem).toHaveBeenCalledWith(tx, "save-1", "corn-seed", 2, 2);
   });
 
@@ -124,7 +185,14 @@ describe("plant", () => {
 describe("harvest", () => {
   const planted = (row: number, col: number, ageSeconds: number) =>
     tile(row, col, { state: "planted", cropId: "corn", plantedAt: new Date(T0 - ageSeconds * 1000), growthAt: new Date(T0 - ageSeconds * 1000), crop: corn });
-  const input = { x: 0, y: 0, tiles: [{ row: 0, col: 0 }, { row: 0, col: 1 }] };
+  const input = {
+    x: 0,
+    y: 0,
+    tiles: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ],
+  };
 
   it("nada maduro: 422 CROP_NOT_RIPE", async () => {
     repo.findPlot.mockResolvedValue(plot([planted(0, 0, 10)]));
@@ -167,7 +235,15 @@ describe("harvest", () => {
 });
 
 describe("fertilize", () => {
-  const input = { x: 0, y: 0, tiles: [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }] };
+  const input = {
+    x: 0,
+    y: 0,
+    tiles: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 0, col: 2 },
+    ],
+  };
 
   it("só terra (nem arada): 422 TILES_NOT_TILLED", async () => {
     repo.findPlot.mockResolvedValue(plot());
@@ -203,7 +279,15 @@ describe("fertilize", () => {
 });
 
 describe("water", () => {
-  const input = { x: 0, y: 0, tiles: [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }] };
+  const input = {
+    x: 0,
+    y: 0,
+    tiles: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 0, col: 2 },
+    ],
+  };
 
   it("sem regador: 422 NO_CAN; regador vazio: 422 CAN_EMPTY", async () => {
     repo.findPlot.mockResolvedValue(plot([tile(0, 0)]));
@@ -254,7 +338,11 @@ describe("buySeed", () => {
   it("sem dinheiro para nenhuma: 422 INSUFFICIENT_FUNDS", async () => {
     setup({ id: "save-1", money: 5 });
     repo.findCropWithSeed.mockResolvedValue(seedCrop(10));
-    await expect(actions.buySeed("u1", { cropId: "corn", quantity: 3 })).rejects.toMatchObject({ constructor: UnprocessableError, status: 422, code: "INSUFFICIENT_FUNDS" });
+    await expect(actions.buySeed("u1", { cropId: "corn", quantity: 3 })).rejects.toMatchObject({
+      constructor: UnprocessableError,
+      status: 422,
+      code: "INSUFFICIENT_FUNDS",
+    });
     expect(repo.changeMoney).not.toHaveBeenCalled();
     expect(repo.addItem).not.toHaveBeenCalled();
   });
@@ -330,7 +418,10 @@ describe("buyPlot", () => {
 
   it("compra o terreno vizinho pelo preço de quem já tem N terrenos", async () => {
     setup({ id: "save-1", money: 99_999 });
-    repo.findPlotPositions.mockResolvedValue([{ x: 0, y: 0 }, { x: 1, y: 0 }]);
+    repo.findPlotPositions.mockResolvedValue([
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+    ]);
     await actions.buyPlot("u1", { x: 1, y: 1 });
     expect(repo.createPlot).toHaveBeenCalledWith(tx, "save-1", 1, 1);
     expect(repo.changeMoney).toHaveBeenCalledWith(tx, "save-1", -plotPrice(2));

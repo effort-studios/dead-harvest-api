@@ -7,8 +7,19 @@ import { GRID_SIZE } from "../utils/game.constants";
 
 export type Tx = Prisma.TransactionClient;
 export type Db = Tx | typeof prisma;
-export type LockedSave = { id: string; money: number; farmerRow: number; farmerCol: number; farmerFreeAt: Date | null; farmerMovedAt: Date | null; barnCapacity: number; barnRow: number | null; barnCol: number | null;
-  canCharges: number | null; wellRow: number | null; wellCol: number | null;
+export type LockedSave = {
+  id: string;
+  money: number;
+  farmerRow: number;
+  farmerCol: number;
+  farmerFreeAt: Date | null;
+  farmerMovedAt: Date | null;
+  barnCapacity: number;
+  barnRow: number | null;
+  barnCol: number | null;
+  canCharges: number | null;
+  wellRow: number | null;
+  wellCol: number | null;
 };
 export type TilePos = { row: number; col: number };
 
@@ -22,7 +33,9 @@ export const transaction = <T>(fn: (tx: Tx) => Promise<T>) => prisma.$transactio
 // Trava a linha do save (FOR UPDATE): ações ao mesmo tempo (cliques rápidos, duas abas, dois aparelhos)
 // entram em fila e cada uma vê o resultado da anterior.
 export async function lockSave(tx: Tx, userId: string): Promise<LockedSave | null> {
-  const [save] = await tx.$queryRaw<LockedSave[]>`SELECT id, money, farmer_row AS "farmerRow", farmer_col AS "farmerCol", farmer_free_at AS "farmerFreeAt", farmer_moved_at AS "farmerMovedAt", barn_capacity AS "barnCapacity", barn_row AS "barnRow", barn_col AS "barnCol", can_charges AS "canCharges", well_row AS "wellRow", well_col AS "wellCol" FROM saves WHERE user_id = ${userId}::uuid FOR UPDATE`;
+  const [save] = await tx.$queryRaw<
+    LockedSave[]
+  >`SELECT id, money, farmer_row AS "farmerRow", farmer_col AS "farmerCol", farmer_free_at AS "farmerFreeAt", farmer_moved_at AS "farmerMovedAt", barn_capacity AS "barnCapacity", barn_row AS "barnRow", barn_col AS "barnCol", can_charges AS "canCharges", well_row AS "wellRow", well_col AS "wellCol" FROM saves WHERE user_id = ${userId}::uuid FOR UPDATE`;
   return save ?? null;
 }
 
@@ -89,12 +102,7 @@ export const clearTiles = (tx: Tx, plotId: string, tiles: TilePos[]) =>
   });
 
 // Aduba ou rega um tile; com planta, grava junto o crescimento acumulado até agora (utils/growth settleGrowth)
-export const boostTile = (
-  tx: Tx,
-  plotId: string,
-  tile: TilePos & { growth?: number; growthAt?: Date },
-  boost: { fertilized: true } | { watered: true },
-) =>
+export const boostTile = (tx: Tx, plotId: string, tile: TilePos & { growth?: number; growthAt?: Date }, boost: { fertilized: true } | { watered: true }) =>
   tx.tile.update({
     where: { plotId_row_col: { plotId, row: tile.row, col: tile.col } },
     data: { ...boost, ...(tile.growthAt ? { growth: tile.growth, growthAt: tile.growthAt } : {}) },
@@ -102,8 +110,7 @@ export const boostTile = (
 
 // ---------- Dinheiro e inventário ----------
 
-export const changeMoney = (tx: Tx, saveId: string, amount: number) =>
-  tx.save.update({ where: { id: saveId }, data: { money: { increment: amount } } });
+export const changeMoney = (tx: Tx, saveId: string, amount: number) => tx.save.update({ where: { id: saveId }, data: { money: { increment: amount } } });
 
 export async function itemCount(tx: Tx, saveId: string, itemId: string) {
   const row = await tx.inventoryItem.findUnique({ where: { saveId_itemId: { saveId, itemId } } });
@@ -134,11 +141,9 @@ export const findCropWithSeed = (tx: Tx, id: string) => tx.crop.findUnique({ whe
 export const findItem = (tx: Tx, id: string) => tx.item.findUnique({ where: { id } });
 export const findTree = (tx: Tx, id: string) => tx.tree.findUnique({ where: { id } });
 
-
 // ---------- Árvores ----------
 
-export const findTreeHarvest = (tx: Tx, saveId: string, treeId: string) =>
-  tx.treeHarvest.findUnique({ where: { saveId_treeId: { saveId, treeId } } });
+export const findTreeHarvest = (tx: Tx, saveId: string, treeId: string) => tx.treeHarvest.findUnique({ where: { saveId_treeId: { saveId, treeId } } });
 
 export const saveTreeHarvest = (tx: Tx, saveId: string, treeId: string, harvestedAt: Date) =>
   tx.treeHarvest.upsert({
@@ -149,16 +154,14 @@ export const saveTreeHarvest = (tx: Tx, saveId: string, treeId: string, harveste
 
 // ---------- Máquinas ----------
 
-export const findSaveMachine = (tx: Tx, saveId: string, machineId: string) =>
-  tx.saveMachine.findUnique({ where: { saveId_machineId: { saveId, machineId } } });
+export const findSaveMachine = (tx: Tx, saveId: string, machineId: string) => tx.saveMachine.findUnique({ where: { saveId_machineId: { saveId, machineId } } });
 
 // Máquina construída na célula `at` (a de cima do chão dela)
 export const createSaveMachine = (tx: Tx, saveId: string, machineId: string, at: TilePos) =>
   tx.saveMachine.create({ data: { saveId, machineId, row: at.row, col: at.col } });
 
 // Máquinas do jogador, onde estão e o tamanho de cada uma
-export const findOwnedMachines = (tx: Tx, saveId: string) =>
-  tx.saveMachine.findMany({ where: { saveId }, include: { machine: { select: { size: true } } } });
+export const findOwnedMachines = (tx: Tx, saveId: string) => tx.saveMachine.findMany({ where: { saveId }, include: { machine: { select: { size: true } } } });
 
 export const moveSaveMachine = (tx: Tx, saveId: string, machineId: string, row: number, col: number) =>
   tx.saveMachine.update({ where: { saveId_machineId: { saveId, machineId } }, data: { row, col } });
@@ -174,8 +177,7 @@ export const deleteMachineJobs = (tx: Tx, ids: string[]) => tx.machineJob.delete
 
 // ---------- Celeiro ----------
 
-export const setBarnCapacity = (tx: Tx, saveId: string, capacity: number) =>
-  tx.save.update({ where: { id: saveId }, data: { barnCapacity: capacity } });
+export const setBarnCapacity = (tx: Tx, saveId: string, capacity: number) => tx.save.update({ where: { id: saveId }, data: { barnCapacity: capacity } });
 
 // Constrói o celeiro (baias e lugar juntos: o banco exige os dois)
 export const buildBarn = (tx: Tx, saveId: string, capacity: number, at: TilePos) =>
@@ -188,19 +190,16 @@ export const setBarnPosition = (tx: Tx, saveId: string, row: number, col: number
 
 export const setCanCharges = (tx: Tx, saveId: string, charges: number) => tx.save.update({ where: { id: saveId }, data: { canCharges: charges } });
 
-export const setWellPosition = (tx: Tx, saveId: string, at: TilePos) =>
-  tx.save.update({ where: { id: saveId }, data: { wellRow: at.row, wellCol: at.col } });
+export const setWellPosition = (tx: Tx, saveId: string, at: TilePos) => tx.save.update({ where: { id: saveId }, data: { wellRow: at.row, wellCol: at.col } });
 
 // Animais do jogador, do mais antigo para o mais novo (é a ordem em que comem quando falta ração)
 export const findSaveAnimals = (tx: Tx, saveId: string) =>
   tx.saveAnimal.findMany({ where: { saveId }, include: { animal: true }, orderBy: { createdAt: "asc" } });
 
-export const createSaveAnimal = (tx: Tx, saveId: string, animalId: string, createdAt: Date) =>
-  tx.saveAnimal.create({ data: { saveId, animalId, createdAt } });
+export const createSaveAnimal = (tx: Tx, saveId: string, animalId: string, createdAt: Date) => tx.saveAnimal.create({ data: { saveId, animalId, createdAt } });
 
 // fedAt = agora (comeram e começam a produzir) ou null (ficam com fome)
-export const setAnimalsFed = (tx: Tx, ids: string[], fedAt: Date | null) =>
-  tx.saveAnimal.updateMany({ where: { id: { in: ids } }, data: { fedAt } });
+export const setAnimalsFed = (tx: Tx, ids: string[], fedAt: Date | null) => tx.saveAnimal.updateMany({ where: { id: { in: ids } }, data: { fedAt } });
 
 // ---------- Fila do fazendeiro ----------
 
@@ -209,11 +208,9 @@ export type NewFarmJob = Omit<FarmJobRow, "id" | "seq" | "saveId" | "createdAt">
 
 export const findJobs = (tx: Tx, saveId: string) => tx.farmJob.findMany({ where: { saveId }, orderBy: { seq: "asc" } });
 
-export const createJobs = (tx: Tx, saveId: string, jobs: NewFarmJob[]) =>
-  tx.farmJob.createMany({ data: jobs.map((j) => ({ ...j, saveId })) });
+export const createJobs = (tx: Tx, saveId: string, jobs: NewFarmJob[]) => tx.farmJob.createMany({ data: jobs.map((j) => ({ ...j, saveId })) });
 
-export const deleteJobs = (tx: Tx, saveId: string, ids?: string[]) =>
-  tx.farmJob.deleteMany({ where: { saveId, ...(ids ? { id: { in: ids } } : {}) } });
+export const deleteJobs = (tx: Tx, saveId: string, ids?: string[]) => tx.farmJob.deleteMany({ where: { saveId, ...(ids ? { id: { in: ids } } : {}) } });
 
 export const setFarmer = (tx: Tx, saveId: string, farmer: { row: number; col: number; freeAt: Date | null }) =>
   tx.save.update({ where: { id: saveId }, data: { farmerRow: farmer.row, farmerCol: farmer.col, farmerFreeAt: farmer.freeAt, farmerMovedAt: null } }); // a fila manda: acaba o andar livre
@@ -228,9 +225,11 @@ export const setFarmerWalk = (tx: Tx, saveId: string, walk: { row: number; col: 
 export const countBuildingJobs = (tx: Tx, saveId: string, building: { machineId: string } | "barn" | "well") =>
   tx.farmJob.count({
     where:
-      building === "barn" ? { saveId, action: "collect_barn" }
-      : building === "well" ? { saveId, action: "refill_can" }
-      : { saveId, action: "collect_machine", machineId: building.machineId },
+      building === "barn"
+        ? { saveId, action: "collect_barn" }
+        : building === "well"
+          ? { saveId, action: "refill_can" }
+          : { saveId, action: "collect_machine", machineId: building.machineId },
   });
 
 // Jogadores com pedidos na fila: é por eles que o worker passa a cada rodada

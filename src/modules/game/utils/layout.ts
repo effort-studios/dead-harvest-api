@@ -35,10 +35,7 @@ export type PlacementProblem = "OUTSIDE_PLOTS" | "ON_TILLED" | "ON_BUILDING";
 
 // O que impede o prédio de ficar ali (null = pode). `used` são as células (do mapa) com terra arada ou
 // plantação; `others`, os chãos dos outros prédios do jogador.
-export function placementProblem(
-  area: Area,
-  world: { plots: { x: number; y: number }[]; used: Cell[]; others: Area[] },
-): PlacementProblem | null {
+export function placementProblem(area: Area, world: { plots: { x: number; y: number }[]; used: Cell[]; others: Area[] }): PlacementProblem | null {
   if (!cellsOf(area).every((cell) => world.plots.some((p) => inPlot(cell, p)))) return "OUTSIDE_PLOTS";
   if (world.used.some((u) => overlaps(area, { r0: u.row, r1: u.row, c0: u.col, c1: u.col }))) return "ON_TILLED";
   if (world.others.some((o) => overlaps(area, o))) return "ON_BUILDING";

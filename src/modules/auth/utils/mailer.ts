@@ -18,7 +18,16 @@ const banner = (() => {
 
 // Cores do design system do jogo (src/shared/ui/tokens.css do front). E-mail não carrega a fonte Duality,
 // então os números usam monoespaçada, e a "moldura" é feita com bordas e sombra dura.
-const C = { grass: "#4f7f3b", panel: "#2b2118", slot: "#1d160f", gold: "#ffd75e", goldFrame: "#c89e61", goldDark: "#6c4620", text: "#f3e6c8", muted: "#b8a888" };
+const C = {
+  grass: "#4f7f3b",
+  panel: "#2b2118",
+  slot: "#1d160f",
+  gold: "#ffd75e",
+  goldFrame: "#c89e61",
+  goldDark: "#6c4620",
+  text: "#f3e6c8",
+  muted: "#b8a888",
+};
 const MONO = "'Courier New',Courier,monospace";
 
 function html(code: string, intro: string, ignoreNote: string): string {
@@ -45,7 +54,6 @@ function html(code: string, intro: string, ignoreNote: string): string {
 </body></html>`;
 }
 
-
 type CodeEmail = { subject: string; intro: string; ignoreNote: string; plain: string };
 
 const PASSWORD_RESET: CodeEmail = {
@@ -67,7 +75,8 @@ const EMAIL_VERIFICATION: CodeEmail = {
 async function sendCode(to: string, code: string, mail: CodeEmail): Promise<void> {
   if (!resend) {
     if (config.isProduction) console.error("[mailer] RESEND_API_KEY não configurada: código não enviado");
-    else console.log(`
+    else
+      console.log(`
 [mailer] E-mail para ${to}
   Assunto: ${mail.subject}
   Seu código é ${code} (vale ${config.resetCodeMinutes} minutos)

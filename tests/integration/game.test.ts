@@ -45,7 +45,9 @@ describe("GET /game/catalog (público)", () => {
     expect(res.status).toBe(200);
     expect(res.body.gridSize).toBe(10);
     expect(res.body.crops.length).toBeGreaterThan(0);
-    expect(res.body.crops[0]).toEqual(expect.objectContaining({ id: expect.any(String), growSeconds: expect.any(Number), harvestPrice: expect.any(Number), seedPrice: expect.any(Number) }));
+    expect(res.body.crops[0]).toEqual(
+      expect.objectContaining({ id: expect.any(String), growSeconds: expect.any(Number), harvestPrice: expect.any(Number), seedPrice: expect.any(Number) }),
+    );
     expect(res.body.trees.length).toBeGreaterThan(0);
     expect(res.body.plotPrice).toEqual({ base: 1000, factor: 1.5 });
   });
@@ -192,7 +194,10 @@ describe("colher pelo fazendeiro", () => {
     return p;
   }
   const growth = (p: { save: { id: string } }, seconds: number) =>
-    prisma.tile.updateMany({ where: { plot: { saveId: p.save.id } }, data: { plantedAt: new Date(Date.now() - seconds * 1000), growthAt: new Date(Date.now() - seconds * 1000) } });
+    prisma.tile.updateMany({
+      where: { plot: { saveId: p.save.id } },
+      data: { plantedAt: new Date(Date.now() - seconds * 1000), growthAt: new Date(Date.now() - seconds * 1000) },
+    });
 
   it("planta verde: a colheita é descartada e nada muda", async () => {
     const p = await plantedCorn("harvest-green");
@@ -328,7 +333,10 @@ describe("POST /game/plots/buy", () => {
     const res = await p.api.post("/game/plots/buy", { x: 1, y: 0 });
     expect(res.status).toBe(200);
     expect(res.body.money).toBe(0);
-    expect(res.body.plots.map((pl: { x: number; y: number }) => [pl.x, pl.y]).sort()).toEqual([[0, 0], [1, 0]]);
+    expect(res.body.plots.map((pl: { x: number; y: number }) => [pl.x, pl.y]).sort()).toEqual([
+      [0, 0],
+      [1, 0],
+    ]);
   });
 
   it("o segundo terreno custa mais (+50%)", async () => {
@@ -354,7 +362,10 @@ describe("POST /game/plots/buy", () => {
   it("longe (ou na diagonal): 422 PLOT_NOT_ADJACENT", async () => {
     const p = await newPlayer("plot-far");
     await p.setMoney(99_999);
-    for (const pos of [{ x: 5, y: 5 }, { x: 1, y: 1 }]) {
+    for (const pos of [
+      { x: 5, y: 5 },
+      { x: 1, y: 1 },
+    ]) {
       const res = await p.api.post("/game/plots/buy", pos);
       expect(res.status).toBe(422);
       expect(res.body.code).toBe("PLOT_NOT_ADJACENT");

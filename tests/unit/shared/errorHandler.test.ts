@@ -168,7 +168,9 @@ describe("errorHandler (HTTP)", () => {
 
   it("corpo grande demais responde 413", async () => {
     const app = buildApp((r) => r.post("/x", (_req, res) => void res.json({ ok: true })));
-    const res = await request(app).post("/x").send({ texto: "a".repeat(5000) });
+    const res = await request(app)
+      .post("/x")
+      .send({ texto: "a".repeat(5000) });
     expect(res.status).toBe(413);
     expect(res.body).toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
   });

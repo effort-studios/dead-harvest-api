@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  BARN_FOOTPRINT,
-  barnCollectTarget,
-  footprint,
-  machineCollectTarget,
-  machineFootprint,
-  placementProblem,
-} from "../../../src/modules/game/utils/layout";
+import { BARN_FOOTPRINT, barnCollectTarget, footprint, machineCollectTarget, machineFootprint, placementProblem } from "../../../src/modules/game/utils/layout";
 
 const world = (over: Partial<Parameters<typeof placementProblem>[1]> = {}) => ({ plots: [{ x: 0, y: 0 }], used: [], others: [], ...over });
 const machineAt = (size: number, row: number, col: number) => footprint(machineFootprint(size), { row, col });
@@ -16,7 +9,19 @@ describe("lugar dos prédios", () => {
     expect(placementProblem(machineAt(1, 5, 5), world())).toBeNull();
     expect(placementProblem(machineAt(1, 5, -1), world())).toBe("OUTSIDE_PLOTS");
     expect(placementProblem(machineAt(2, 9, 9), world())).toBe("OUTSIDE_PLOTS"); // a 2x2 sai pela borda
-    expect(placementProblem(machineAt(2, 9, 9), world({ plots: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }] }))).toBeNull();
+    expect(
+      placementProblem(
+        machineAt(2, 9, 9),
+        world({
+          plots: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 0, y: 1 },
+            { x: 1, y: 1 },
+          ],
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("não em cima de terra arada ou plantação", () => {

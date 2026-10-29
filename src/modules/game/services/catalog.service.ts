@@ -49,7 +49,14 @@ async function loadCatalog() {
     fruits: items.filter((i) => i.kind === "fruit").map((f) => ({ id: f.id, name: f.name, sellPrice: f.sellPrice ?? 0 })),
     // tudo que não é semente (frutas, colheitas, produtos); sellPrice null = não se vende
     items: items.map((i) => ({ id: i.id, kind: i.kind, name: i.name, sellPrice: i.sellPrice })),
-    trees: trees.map((t) => ({ id: t.id, fruitId: t.fruitItemId, row: t.row, col: t.col, fruitsPerHarvest: t.fruitsPerHarvest, regrowSeconds: t.regrowSeconds })),
+    trees: trees.map((t) => ({
+      id: t.id,
+      fruitId: t.fruitItemId,
+      row: t.row,
+      col: t.col,
+      fruitsPerHarvest: t.fruitsPerHarvest,
+      regrowSeconds: t.regrowSeconds,
+    })),
     machines: machines.map((m) => ({
       id: m.id,
       name: m.name,

@@ -42,17 +42,15 @@ describe("respostas padrão da API", () => {
   });
 
   it("corpo acima de 100kb: 413 PAYLOAD_TOO_LARGE", async () => {
-    const res = await request(app).post("/auth/login").send({ email: "a@example.test", password: "x".repeat(150_000) });
+    const res = await request(app)
+      .post("/auth/login")
+      .send({ email: "a@example.test", password: "x".repeat(150_000) });
     expect(res.status).toBe(413);
     expect(res.body.code).toBe("PAYLOAD_TOO_LARGE");
   });
 
   it("o formato é compatível com o front: error é sempre texto", async () => {
-    const responses = [
-      await request(app).get("/auth/me"),
-      await request(app).post("/auth/login").send({}),
-      await request(app).get("/nada"),
-    ];
+    const responses = [await request(app).get("/auth/me"), await request(app).post("/auth/login").send({}), await request(app).get("/nada")];
     for (const res of responses) {
       expect(typeof res.body.error).toBe("string");
       expect(typeof res.body.code).toBe("string");
@@ -63,7 +61,9 @@ describe("respostas padrão da API", () => {
 describe("falhas de infraestrutura", () => {
   it("banco fora do ar: 503 DATABASE_UNAVAILABLE com Retry-After, sem vazar o host do banco", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(prisma.user, "findUnique").mockRejectedValueOnce(new Prisma.PrismaClientInitializationError("Can't reach database server at 10.9.8.7:5432", "test"));
+    vi.spyOn(prisma.user, "findUnique").mockRejectedValueOnce(
+      new Prisma.PrismaClientInitializationError("Can't reach database server at 10.9.8.7:5432", "test"),
+    );
 
     const res = await request(app).post("/auth/login").send({ email: "a@example.test", password: PASSWORD });
     expect(res.status).toBe(503);
@@ -76,7 +76,9 @@ describe("falhas de infraestrutura", () => {
   it("conflito de transação do Postgres (P2034): 503 para o cliente tentar de novo", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { cookie } = await createUser("p2034");
-    vi.spyOn(prisma, "$transaction").mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("write conflict", { code: "P2034", clientVersion: "test" }));
+    vi.spyOn(prisma, "$transaction").mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("write conflict", { code: "P2034", clientVersion: "test" }),
+    );
 
     const res = await as(cookie).post("/game/jobs", { action: "till", x: 0, y: 0, tiles: [{ row: 0, col: 0 }] });
     expect(res.status).toBe(503);

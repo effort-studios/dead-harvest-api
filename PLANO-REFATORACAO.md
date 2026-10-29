@@ -53,14 +53,14 @@ tests/
 
 ### Responsabilidade de cada camada
 
-| Camada | Faz | Não faz |
-|---|---|---|
-| `*.module.ts` | URL → middlewares (`requireAuth`, `rateLimit`, `validate`) → controller | lógica |
-| `controllers/` | lê `req`, chama o service, monta a resposta (status, cookie, JSON) | conhece Prisma ou regra do jogo |
-| `services/` | regra de negócio; lança `AppError` | importa Express ou Prisma |
-| `repositories/` | consultas e escritas no Prisma | regra de negócio |
-| `dto/` | schemas de entrada (zod) e tipos | — |
-| `entities/` · `enums/` | tipos do domínio, constantes | — |
+| Camada                 | Faz                                                                     | Não faz                         |
+| ---------------------- | ----------------------------------------------------------------------- | ------------------------------- |
+| `*.module.ts`          | URL → middlewares (`requireAuth`, `rateLimit`, `validate`) → controller | lógica                          |
+| `controllers/`         | lê `req`, chama o service, monta a resposta (status, cookie, JSON)      | conhece Prisma ou regra do jogo |
+| `services/`            | regra de negócio; lança `AppError`                                      | importa Express ou Prisma       |
+| `repositories/`        | consultas e escritas no Prisma                                          | regra de negócio                |
+| `dto/`                 | schemas de entrada (zod) e tipos                                        | —                               |
+| `entities/` · `enums/` | tipos do domínio, constantes                                            | —                               |
 
 URLs **não mudam**: `PATCH /auth/me` continua em `/auth/me`, só que o código dele vive no módulo `users`.
 
@@ -68,29 +68,29 @@ URLs **não mudam**: `PATCH /auth/me` continua em `/auth/me`, só que o código 
 
 `AppError(status, code, message, details?, headers?)` é a base.
 
-| Classe | Status | Uso |
-|---|---|---|
-| `BadRequestError` | 400 | input inválido, referência inexistente (planta/item), código de reset errado |
-| `UnauthorizedError` | 401 | sem sessão, sessão expirada, login errado |
-| `ForbiddenError` | 403 | reservado |
-| `NotFoundError` | 404 | terreno, árvore, save, rota |
-| `ConflictError` | 409 | e-mail já cadastrado, tile já arado, terreno já é seu |
-| `UnprocessableError` | 422 | sem dinheiro, sem semente, planta verde, árvore sem fruta, terreno não adjacente |
-| `TooManyRequestsError` | 429 | rate limit (com `Retry-After`) |
+| Classe                 | Status | Uso                                                                              |
+| ---------------------- | ------ | -------------------------------------------------------------------------------- |
+| `BadRequestError`      | 400    | input inválido, referência inexistente (planta/item), código de reset errado     |
+| `UnauthorizedError`    | 401    | sem sessão, sessão expirada, login errado                                        |
+| `ForbiddenError`       | 403    | reservado                                                                        |
+| `NotFoundError`        | 404    | terreno, árvore, save, rota                                                      |
+| `ConflictError`        | 409    | e-mail já cadastrado, tile já arado, terreno já é seu                            |
+| `UnprocessableError`   | 422    | sem dinheiro, sem semente, planta verde, árvore sem fruta, terreno não adjacente |
+| `TooManyRequestsError` | 429    | rate limit (com `Retry-After`)                                                   |
 
 O `errorHandler` único traduz também o que não é `AppError`:
 
-| Origem | Resultado |
-|---|---|
-| `ZodError` | 400 `VALIDATION_ERROR` + `details: [{ path, message }]` |
-| JSON malformado | 400 `INVALID_JSON` (hoje dá 500) |
-| Body > 100kb | 413 `PAYLOAD_TOO_LARGE` |
-| Prisma `P2002` / `P2003` | 409 |
-| Prisma `P2025` | 404 |
-| Prisma `P2034`, `P2024`, `P1008`, `P1001`, `P1002`, `P1017` | 503 + `Retry-After` |
-| `PrismaClientInitializationError` | 503 `DATABASE_UNAVAILABLE` |
-| Rota inexistente | 404 JSON (hoje é HTML) |
-| Qualquer outra coisa | 500 `INTERNAL_ERROR` genérico; stack só no log, com `requestId` |
+| Origem                                                      | Resultado                                                       |
+| ----------------------------------------------------------- | --------------------------------------------------------------- |
+| `ZodError`                                                  | 400 `VALIDATION_ERROR` + `details: [{ path, message }]`         |
+| JSON malformado                                             | 400 `INVALID_JSON` (hoje dá 500)                                |
+| Body > 100kb                                                | 413 `PAYLOAD_TOO_LARGE`                                         |
+| Prisma `P2002` / `P2003`                                    | 409                                                             |
+| Prisma `P2025`                                              | 404                                                             |
+| Prisma `P2034`, `P2024`, `P1008`, `P1001`, `P1002`, `P1017` | 503 + `Retry-After`                                             |
+| `PrismaClientInitializationError`                           | 503 `DATABASE_UNAVAILABLE`                                      |
+| Rota inexistente                                            | 404 JSON (hoje é HTML)                                          |
+| Qualquer outra coisa                                        | 500 `INTERNAL_ERROR` genérico; stack só no log, com `requestId` |
 
 Resposta de erro: `{ "error": "msg", "code": "CODE", "details": [...], "requestId": "..." }`.
 
@@ -109,13 +109,13 @@ Regras:
 
 Estado:
 
-| Fase | Conteúdo | Estado |
-|---|---|---|
-| 0 | baseline do comportamento atual (roteiro de smoke) | feito |
-| 1 | `shared/` (erros, http, database) + `app.ts` | feito |
-| 2 | testes: infraestrutura + unitários do `shared/` | feito |
-| 3–5 | módulos `users` + `auth` + `game` (feitos juntos: `users` depende do `requireAuth`) + testes deles | feito |
-| 6 | `health`, remoção do código antigo, README, PROGRESS.md | feito |
+| Fase | Conteúdo                                                                                           | Estado |
+| ---- | -------------------------------------------------------------------------------------------------- | ------ |
+| 0    | baseline do comportamento atual (roteiro de smoke)                                                 | feito  |
+| 1    | `shared/` (erros, http, database) + `app.ts`                                                       | feito  |
+| 2    | testes: infraestrutura + unitários do `shared/`                                                    | feito  |
+| 3–5  | módulos `users` + `auth` + `game` (feitos juntos: `users` depende do `requireAuth`) + testes deles | feito  |
+| 6    | `health`, remoção do código antigo, README, PROGRESS.md                                            | feito  |
 
 ## 4. Testes (Vitest + supertest)
 
@@ -131,26 +131,26 @@ Estado:
 
 ### Unitários (sem banco)
 
-| Alvo | O que verifica |
-|---|---|
-| `errorHandler` | uma linha por linha da tabela da seção 2, incluindo que o 500 não vaza a mensagem interna |
-| `validate` | troca o body pelo valor tratado; erro vira 400 com `details`; `message` customizada |
-| `asyncHandler` | rejeição de promise chega no `errorHandler` |
-| `rateLimit` | 429 + `Retry-After`; janela reinicia (timers falsos) |
-| `requestId` · `notFound` | cabeçalho gerado; 404 JSON |
-| `auth/utils` | cookie malformado não quebra; hash e verificação de senha |
+| Alvo                                 | O que verifica                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `errorHandler`                       | uma linha por linha da tabela da seção 2, incluindo que o 500 não vaza a mensagem interna                           |
+| `validate`                           | troca o body pelo valor tratado; erro vira 400 com `details`; `message` customizada                                 |
+| `asyncHandler`                       | rejeição de promise chega no `errorHandler`                                                                         |
+| `rateLimit`                          | 429 + `Retry-After`; janela reinicia (timers falsos)                                                                |
+| `requestId` · `notFound`             | cabeçalho gerado; 404 JSON                                                                                          |
+| `auth/utils`                         | cookie malformado não quebra; hash e verificação de senha                                                           |
 | `auth.service` (repositórios falsos) | login (mesmo tempo com e-mail inexistente), cadastro duplicado, reset (tentativas, expiração, código reaproveitado) |
-| `game services` (repositório falso) | cada regra devolve o `code` certo: `INSUFFICIENT_FUNDS`, `NO_SEEDS`, `CROP_NOT_RIPE`, `PLOT_NOT_ADJACENT`... |
+| `game services` (repositório falso)  | cada regra devolve o `code` certo: `INSUFFICIENT_FUNDS`, `NO_SEEDS`, `CROP_NOT_RIPE`, `PLOT_NOT_ADJACENT`...        |
 
 ### Integração (supertest + banco de teste)
 
-| Área | Casos |
-|---|---|
-| Auth | registrar → `/auth/me` → logout; e-mail duplicado 409; senha errada 401; 11º login em 15 min 429; reset com código inválido 400; reset derruba as sessões |
-| Erros globais | rota inexistente 404 JSON; JSON quebrado 400; body > 100kb 413; sessão inválida 401 e cookie limpo; `requestId` presente |
-| Game | cada ação nos caminhos 200 / 400 / 404 / 409 / 422; colheita com sucesso (volta o `plantedAt` no banco); árvore colhida duas vezes dá 422 |
-| Concorrência | N compras de semente em paralelo: o dinheiro nunca fica negativo e o total bate (prova o `FOR UPDATE`) |
-| Falhas de infra | banco indisponível (Prisma simulado) responde 503 com `Retry-After`, sem vazar a mensagem |
+| Área            | Casos                                                                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth            | registrar → `/auth/me` → logout; e-mail duplicado 409; senha errada 401; 11º login em 15 min 429; reset com código inválido 400; reset derruba as sessões |
+| Erros globais   | rota inexistente 404 JSON; JSON quebrado 400; body > 100kb 413; sessão inválida 401 e cookie limpo; `requestId` presente                                  |
+| Game            | cada ação nos caminhos 200 / 400 / 404 / 409 / 422; colheita com sucesso (volta o `plantedAt` no banco); árvore colhida duas vezes dá 422                 |
+| Concorrência    | N compras de semente em paralelo: o dinheiro nunca fica negativo e o total bate (prova o `FOR UPDATE`)                                                    |
+| Falhas de infra | banco indisponível (Prisma simulado) responde 503 com `Retry-After`, sem vazar a mensagem                                                                 |
 
 ## 5. Verificação final
 

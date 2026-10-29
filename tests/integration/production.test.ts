@@ -18,7 +18,16 @@ type Catalog = {
   crops: { id: string; growSeconds: number; harvestItemId: string; harvestPrice: number }[];
   items: { id: string; kind: string; name: string; sellPrice: number | null }[];
   machines: { id: string; buyPrice: number; size: number; queueSize: number; recipes: Recipe[] }[];
-  animals: { id: string; buyPrice: number; feedItemId: string; feedQuantity: number; productItemId: string; produceSeconds: number; byproductItemId: string | null; byproductQuantity: number }[];
+  animals: {
+    id: string;
+    buyPrice: number;
+    feedItemId: string;
+    feedQuantity: number;
+    productItemId: string;
+    produceSeconds: number;
+    byproductItemId: string | null;
+    byproductQuantity: number;
+  }[];
   barn: { price: number; startCapacity: number; maxCapacity: number };
   layout: { barnFootprint: { r0: number; r1: number; c0: number; c1: number } };
 };
@@ -99,7 +108,10 @@ describe("construir e mover prédios", () => {
 
     await p.give("corn_harvest", 3);
     await p.api.post("/game/machines/start", { recipeId: "cornmeal" });
-    await prisma.machineJob.updateMany({ where: { saveId: p.save.id }, data: { startsAt: new Date(Date.now() - 100_000_000), readyAt: new Date(Date.now() - 1000) } });
+    await prisma.machineJob.updateMany({
+      where: { saveId: p.save.id },
+      data: { startsAt: new Date(Date.now() - 100_000_000), readyAt: new Date(Date.now() - 1000) },
+    });
     const collected = await p.api.post("/game/jobs", { action: "collect_machine", machineId: "mill" });
     expect(collected.body.inventory.cornmeal).toBe(1);
     expect(collected.body.farmer).toMatchObject({ row: 6, col: 8 }); // na frente do moinho (2x2), no lugar novo
@@ -121,7 +133,12 @@ describe("construir e mover prédios", () => {
     await buyBarn(p);
     await p.api.post("/game/jobs", { action: "till", x: 0, y: 0, tiles: [{ row: 3, col: 3 }] });
     // fora do terreno; metade para fora (o moinho é 2x2); em cima da terra arada; em cima do celeiro
-    for (const [row, col] of [[-3, -3], [9, 9], [3, 3], [6, 3]]) {
+    for (const [row, col] of [
+      [-3, -3],
+      [9, 9],
+      [3, 3],
+      [6, 3],
+    ]) {
       const res = await p.api.post("/game/machines/buy", { machineId: "mill", row, col });
       expect([res.status, res.body.code], `${row},${col}`).toEqual([422, "PLACE_BLOCKED"]);
     }
@@ -139,7 +156,15 @@ describe("construir e mover prédios", () => {
   it("embaixo de prédio não se ara", async () => {
     const p = await newPlayer("till-under");
     await buyMachine(p, "mill");
-    await p.api.post("/game/jobs", { action: "till", x: 0, y: 0, tiles: [{ row: 1, col: 1 }, { row: 3, col: 3 }] });
+    await p.api.post("/game/jobs", {
+      action: "till",
+      x: 0,
+      y: 0,
+      tiles: [
+        { row: 1, col: 1 },
+        { row: 3, col: 3 },
+      ],
+    });
     expect(await tile(p, 1, 1)).toBe("soil");
     expect(await tile(p, 3, 3)).toBe("tilled");
   });
@@ -182,7 +207,10 @@ describe("máquinas", () => {
     expect(early.body.inventory.cornmeal).toBeUndefined();
     expect(early.body.machines.mill.jobs).toHaveLength(1);
 
-    await prisma.machineJob.updateMany({ where: { saveId: p.save.id }, data: { startsAt: new Date(Date.now() - 100_000_000), readyAt: new Date(Date.now() - 1000) } });
+    await prisma.machineJob.updateMany({
+      where: { saveId: p.save.id },
+      data: { startsAt: new Date(Date.now() - 100_000_000), readyAt: new Date(Date.now() - 1000) },
+    });
     const collected = await p.api.post("/game/jobs", { action: "collect_machine", machineId: "mill" });
     expect(collected.body.inventory.cornmeal).toBe(1);
     expect(collected.body.machines.mill.jobs).toEqual([]);
@@ -276,7 +304,10 @@ describe("adubo", () => {
 
     await job({ action: "plant", cropId: "corn" });
     const faster = Math.ceil(corn.growSeconds / 1.3) + 1;
-    await prisma.tile.updateMany({ where: { plot: { saveId: p.save.id } }, data: { plantedAt: new Date(Date.now() - faster * 1000), growthAt: new Date(Date.now() - faster * 1000) } });
+    await prisma.tile.updateMany({
+      where: { plot: { saveId: p.save.id } },
+      data: { plantedAt: new Date(Date.now() - faster * 1000), growthAt: new Date(Date.now() - faster * 1000) },
+    });
     const harvested = await job({ action: "harvest" });
     expect(harvested.body.inventory[corn.harvestItemId]).toBe(1);
     expect(harvested.body.plots[0].grid[0][0]).toEqual({ state: "tilled", crop: null, growth: 0, fertilized: false, watered: false });
@@ -314,4 +345,3 @@ describe("regador e poço", () => {
     expect((await job({ action: "fertilize" })).body.plots[0].grid[0][0]).toMatchObject({ state: "planted", fertilized: true });
   });
 });
-

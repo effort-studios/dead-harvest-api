@@ -26,10 +26,15 @@ async function main() {
   execFileSync(
     "npx",
     [
-      "prisma", "migrate", "diff",
-      "--from-migrations", "prisma/migrations",
-      "--to-schema-datamodel", "prisma/schema.prisma",
-      "--shadow-database-url", shadowUrl.toString(),
+      "prisma",
+      "migrate",
+      "diff",
+      "--from-migrations",
+      "prisma/migrations",
+      "--to-schema-datamodel",
+      "prisma/schema.prisma",
+      "--shadow-database-url",
+      shadowUrl.toString(),
       "--exit-code",
     ],
     { stdio: "inherit", shell: process.platform === "win32" }, // no Windows o npx é um .cmd

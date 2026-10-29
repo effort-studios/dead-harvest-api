@@ -50,7 +50,11 @@ export type FarmerView = { row: number; col: number; jobs: JobView[] };
 export type SaveRow = {
   gameStartedAt: Date;
   money: number;
-  plots: { x: number; y: number; tiles: { row: number; col: number; state: string; cropId: string | null; fertilized: boolean; watered: boolean; growth: number; growthAt: Date | null }[] }[];
+  plots: {
+    x: number;
+    y: number;
+    tiles: { row: number; col: number; state: string; cropId: string | null; fertilized: boolean; watered: boolean; growth: number; growthAt: Date | null }[];
+  }[];
   inventory: { itemId: string; quantity: number }[];
   treeHarvests: { treeId: string; harvestedAt: Date }[];
   machines: { machineId: string; row: number; col: number; jobs: { id: string; recipeId: string; startsAt: Date; readyAt: Date }[] }[];
