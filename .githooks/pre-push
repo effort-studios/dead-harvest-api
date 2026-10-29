@@ -3,6 +3,14 @@
 # Precisa do Postgres local de pé (npm run db:up). Em emergência: git push --no-verify
 set -e
 
+# Nada de push direto na main: abra um PR (a main é protegida no GitHub também)
+while read -r _ _ remote_ref _; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "Push direto na main bloqueado. Use uma branch e abra um PR." >&2
+    exit 1
+  fi
+done
+
 npm run lint
 npm run typecheck
 npm run check:migrations

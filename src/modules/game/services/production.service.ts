@@ -62,13 +62,17 @@ export const startRecipe = (userId: string, input: { recipeId: string }) =>
   });
 
 // Coleta tudo o que já ficou pronto na máquina (o fazendeiro chega até ela)
-export const collectMachineAction = (machineId: string): Action =>
+export const collectMachineAction =
+  (machineId: string): Action =>
   async (tx, save, now) => {
     if (!(await repo.findSaveMachine(tx, save.id, machineId))) throw new UnprocessableError("Você não tem essa máquina", "MACHINE_NOT_OWNED");
     const ready = (await repo.findMachineJobs(tx, save.id, machineId)).filter((j) => j.readyAt.getTime() <= now);
     if (ready.length === 0) throw new UnprocessableError("Ainda não tem nada pronto nessa máquina", "MACHINE_NOT_READY");
     for (const job of ready) await repo.addItem(tx, save.id, job.recipe.outputItemId, job.recipe.outputQuantity);
-    await repo.deleteMachineJobs(tx, ready.map((j) => j.id));
+    await repo.deleteMachineJobs(
+      tx,
+      ready.map((j) => j.id),
+    );
   };
 
 // ---------- Celeiro ----------
@@ -126,7 +130,11 @@ async function feed(tx: repo.Tx, saveId: string, animals: OwnedAnimal[], now: nu
     const used = fed.filter((a) => a.animal.feedItemId === itemId).reduce((sum, a) => sum + a.animal.feedQuantity, 0);
     if (used > 0) await repo.removeItem(tx, saveId, itemId, used, left + used);
   }
-  await repo.setAnimalsFed(tx, fed.map((a) => a.id), new Date(now));
+  await repo.setAnimalsFed(
+    tx,
+    fed.map((a) => a.id),
+    new Date(now),
+  );
   return fed;
 }
 
@@ -141,27 +149,24 @@ export const feedAnimals = (userId: string) =>
 
 // Coleta o que os animais produziram (o fazendeiro chega ao celeiro) e já dá ração de novo a eles, se houver;
 // quem fica sem ração fica com fome
-export const collectBarnAction = (): Action =>
-  async (tx, save, now) => {
-    if (save.barnCapacity === 0) throw new UnprocessableError("Compre o celeiro antes", "NO_BARN");
-    const ready = (await repo.findSaveAnimals(tx, save.id)).filter(
-      (a) => a.fedAt !== null && now - a.fedAt.getTime() >= a.animal.produceSeconds * 1000,
-    );
-    if (ready.length === 0) throw new UnprocessableError("Os animais ainda não produziram", "BARN_NOT_READY");
+export const collectBarnAction = (): Action => async (tx, save, now) => {
+  if (save.barnCapacity === 0) throw new UnprocessableError("Compre o celeiro antes", "NO_BARN");
+  const ready = (await repo.findSaveAnimals(tx, save.id)).filter((a) => a.fedAt !== null && now - a.fedAt.getTime() >= a.animal.produceSeconds * 1000);
+  if (ready.length === 0) throw new UnprocessableError("Os animais ainda não produziram", "BARN_NOT_READY");
 
-    // o produto de cada animal e o que ele soltou junto (esterco)
-    const counts = new Map<string, number>();
-    const give = (itemId: string, n: number) => counts.set(itemId, (counts.get(itemId) ?? 0) + n);
-    for (const a of ready) {
-      give(a.animal.productItemId, 1);
-      if (a.animal.byproductItemId) give(a.animal.byproductItemId, a.animal.byproductQuantity);
-    }
-    for (const [itemId, n] of counts) await repo.addItem(tx, save.id, itemId, n);
+  // o produto de cada animal e o que ele soltou junto (esterco)
+  const counts = new Map<string, number>();
+  const give = (itemId: string, n: number) => counts.set(itemId, (counts.get(itemId) ?? 0) + n);
+  for (const a of ready) {
+    give(a.animal.productItemId, 1);
+    if (a.animal.byproductItemId) give(a.animal.byproductItemId, a.animal.byproductQuantity);
+  }
+  for (const [itemId, n] of counts) await repo.addItem(tx, save.id, itemId, n);
 
-    const fed = new Set((await feed(tx, save.id, ready, now)).map((a) => a.id));
-    const hungry = ready.filter((a) => !fed.has(a.id)).map((a) => a.id);
-    if (hungry.length > 0) await repo.setAnimalsFed(tx, hungry, null);
-  };
+  const fed = new Set((await feed(tx, save.id, ready, now)).map((a) => a.id));
+  const hungry = ready.filter((a) => !fed.has(a.id)).map((a) => a.id);
+  if (hungry.length > 0) await repo.setAnimalsFed(tx, hungry, null);
+};
 
 // Para o fazendeiro saber se o pedido faz sentido antes de entrar na fila; devolve onde a máquina está e o
 // tamanho dela
@@ -194,12 +199,11 @@ export function requireCanRefill(save: repo.LockedSave) {
 }
 
 // Enche o regador (o fazendeiro chega ao poço)
-export const refillCanAction = (): Action =>
-  async (tx, save) => {
-    requireCanRefill(save);
-    if (save.canCharges === WATERING_CAN.charges) throw new ConflictError("O regador já está cheio", "CAN_FULL");
-    await repo.setCanCharges(tx, save.id, WATERING_CAN.charges);
-  };
+export const refillCanAction = (): Action => async (tx, save) => {
+  requireCanRefill(save);
+  if (save.canCharges === WATERING_CAN.charges) throw new ConflictError("O regador já está cheio", "CAN_FULL");
+  await repo.setCanCharges(tx, save.id, WATERING_CAN.charges);
+};
 
 // ---------- Lugar dos prédios ----------
 

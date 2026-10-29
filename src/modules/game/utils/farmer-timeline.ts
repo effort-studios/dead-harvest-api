@@ -25,7 +25,7 @@ export const WALK_MAX_WINDOW_MS = 60_000; // teto de um trecho sem aviso (o clie
 
 export function clampWalk(from: Cell, to: Cell, elapsedMs: number): Cell {
   const window = Math.min(Math.max(elapsedMs, 0), WALK_MAX_WINDOW_MS);
-  const reach = (config.farmerWalkSpeed * window) / 1000 * WALK_TOLERANCE + WALK_SLACK_CELLS;
+  const reach = ((config.farmerWalkSpeed * window) / 1000) * WALK_TOLERANCE + WALK_SLACK_CELLS;
   const dist = distance(from, to);
   if (dist <= reach) return to;
   const f = reach / dist;

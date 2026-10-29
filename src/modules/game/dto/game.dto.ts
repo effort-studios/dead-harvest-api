@@ -5,7 +5,11 @@ import { GRID_SIZE } from "../utils/game.constants";
 // quem decide é o servidor (services/game-actions.service.ts).
 
 const id = z.string().min(1).max(30);
-const cell = z.number().int().min(0).max(GRID_SIZE - 1);
+const cell = z
+  .number()
+  .int()
+  .min(0)
+  .max(GRID_SIZE - 1);
 // Terreno na malha de terrenos. Sem limite, um número gigante estoura o INT do banco (500)
 const plotCoord = z.number().int().min(-50).max(50);
 

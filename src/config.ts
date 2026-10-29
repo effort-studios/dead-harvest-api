@@ -11,7 +11,10 @@ export const config = {
   port: Number(process.env.PORT ?? 3333),
   isProduction: process.env.NODE_ENV === "production",
   // origens do front liberadas no CORS, separadas por vírgula (ex.: localhost e o IP da rede)
-  webOrigins: required("WEB_URL").split(",").map((url) => url.trim()).filter(Boolean),
+  webOrigins: required("WEB_URL")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean),
   // segredo usado para assinar (HMAC) os códigos de redefinição de senha; mínimo de 32 caracteres
   authSecret: (() => {
     const secret = required("AUTH_SECRET");

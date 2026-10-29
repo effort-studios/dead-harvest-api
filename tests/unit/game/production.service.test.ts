@@ -9,7 +9,16 @@ import * as production from "../../../src/modules/game/services/production.servi
 const repo = vi.mocked(gameRepository);
 const tx = { tx: true } as never;
 const T0 = Date.UTC(2026, 0, 1);
-const SAVE = { id: "save-1", money: 1000, farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, barnCapacity: 4, barnRow: 1 as number | null, barnCol: -7 as number | null };
+const SAVE = {
+  id: "save-1",
+  money: 1000,
+  farmerRow: 4,
+  farmerCol: -1.5,
+  farmerFreeAt: null,
+  barnCapacity: 4,
+  barnRow: 1 as number | null,
+  barnCol: -7 as number | null,
+};
 
 function setup(save: Partial<typeof SAVE> = {}) {
   repo.transaction.mockImplementation(((fn: (t: never) => unknown) => fn(tx)) as never);
@@ -18,7 +27,20 @@ function setup(save: Partial<typeof SAVE> = {}) {
   repo.findPlotPositions.mockResolvedValue([{ x: 0, y: 0 }]);
   repo.findUsedCells.mockResolvedValue([]);
   repo.findOwnedMachines.mockResolvedValue([]);
-  repo.findSaveState.mockResolvedValue({ gameStartedAt: new Date(T0), money: 0, plots: [], inventory: [], treeHarvests: [], farmerRow: 4, farmerCol: -1.5, farmerFreeAt: null, farmJobs: [], machines: [], barnCapacity: 0, animals: [] } as never);
+  repo.findSaveState.mockResolvedValue({
+    gameStartedAt: new Date(T0),
+    money: 0,
+    plots: [],
+    inventory: [],
+    treeHarvests: [],
+    farmerRow: 4,
+    farmerCol: -1.5,
+    farmerFreeAt: null,
+    farmJobs: [],
+    machines: [],
+    barnCapacity: 0,
+    animals: [],
+  } as never);
 }
 
 // O que a action do fazendeiro recebe: o save já travado, a transação e o instante
@@ -46,13 +68,19 @@ const cornmeal = {
 describe("buyMachine", () => {
   it("máquina que não existe: 400 UNKNOWN_MACHINE", async () => {
     repo.findMachine.mockResolvedValue(null);
-    await expect(production.buyMachine("u1", { machineId: "x", row: 5, col: 5 })).rejects.toMatchObject({ constructor: BadRequestError, code: "UNKNOWN_MACHINE" });
+    await expect(production.buyMachine("u1", { machineId: "x", row: 5, col: 5 })).rejects.toMatchObject({
+      constructor: BadRequestError,
+      code: "UNKNOWN_MACHINE",
+    });
   });
 
   it("já tem: 409 MACHINE_ALREADY_OWNED", async () => {
     repo.findMachine.mockResolvedValue(mill as never);
     repo.findSaveMachine.mockResolvedValue({} as never);
-    await expect(production.buyMachine("u1", { machineId: "mill", row: 5, col: 5 })).rejects.toMatchObject({ constructor: ConflictError, code: "MACHINE_ALREADY_OWNED" });
+    await expect(production.buyMachine("u1", { machineId: "mill", row: 5, col: 5 })).rejects.toMatchObject({
+      constructor: ConflictError,
+      code: "MACHINE_ALREADY_OWNED",
+    });
   });
 
   it("sem dinheiro: 422 INSUFFICIENT_FUNDS", async () => {
@@ -101,7 +129,10 @@ describe("startRecipe", () => {
 
   it("faltam ingredientes: 422 NOT_ENOUGH_ITEMS dizendo quanto falta, sem gastar nada", async () => {
     repo.itemCount.mockResolvedValue(1);
-    await expect(production.startRecipe("u1", { recipeId: "cornmeal" })).rejects.toMatchObject({ code: "NOT_ENOUGH_ITEMS", message: "Faltam ingredientes: 2 milho" });
+    await expect(production.startRecipe("u1", { recipeId: "cornmeal" })).rejects.toMatchObject({
+      code: "NOT_ENOUGH_ITEMS",
+      message: "Faltam ingredientes: 2 milho",
+    });
     expect(repo.removeItem).not.toHaveBeenCalled();
     expect(repo.createMachineJob).not.toHaveBeenCalled();
   });
@@ -110,7 +141,13 @@ describe("startRecipe", () => {
     repo.itemCount.mockResolvedValue(5);
     await production.startRecipe("u1", { recipeId: "cornmeal" });
     expect(repo.removeItem).toHaveBeenCalledWith(tx, "save-1", "corn_harvest", 3, 5);
-    expect(repo.createMachineJob).toHaveBeenCalledWith(tx, { saveId: "save-1", machineId: "mill", recipeId: "cornmeal", startsAt: new Date(T0), readyAt: new Date(T0 + 60_000) });
+    expect(repo.createMachineJob).toHaveBeenCalledWith(tx, {
+      saveId: "save-1",
+      machineId: "mill",
+      recipeId: "cornmeal",
+      startsAt: new Date(T0),
+      readyAt: new Date(T0 + 60_000),
+    });
   });
 
   it("máquina ocupada: começa quando a anterior fica pronta", async () => {
@@ -141,7 +178,17 @@ describe("collectMachineAction", () => {
 });
 
 describe("celeiro", () => {
-  const chicken = { id: "chicken", name: "Galinha", buyPrice: 150, feedItemId: "feed", feedQuantity: 1, productItemId: "egg", produceSeconds: 60, byproductItemId: "manure" as string | null, byproductQuantity: 1 };
+  const chicken = {
+    id: "chicken",
+    name: "Galinha",
+    buyPrice: 150,
+    feedItemId: "feed",
+    feedQuantity: 1,
+    productItemId: "egg",
+    produceSeconds: 60,
+    byproductItemId: "manure" as string | null,
+    byproductQuantity: 1,
+  };
   const cow = { ...chicken, id: "cow", name: "Vaca", feedQuantity: 2, productItemId: "milk", produceSeconds: 120, byproductQuantity: 2 };
   const sheep = { ...chicken, id: "sheep", name: "Ovelha", productItemId: "wool", byproductItemId: null, byproductQuantity: 0 };
   const owned = (id: string, animal: typeof chicken, fedAt: Date | null) => ({ id, animalId: animal.id, animal, fedAt });
@@ -179,7 +226,12 @@ describe("celeiro", () => {
   });
 
   it("alimentar: só os com fome, do mais antigo ao mais novo, enquanto houver ração", async () => {
-    repo.findSaveAnimals.mockResolvedValue([owned("a1", cow, null), owned("a2", chicken, new Date(T0 - 1)), owned("a3", cow, null), owned("a4", chicken, null)] as never);
+    repo.findSaveAnimals.mockResolvedValue([
+      owned("a1", cow, null),
+      owned("a2", chicken, new Date(T0 - 1)),
+      owned("a3", cow, null),
+      owned("a4", chicken, null),
+    ] as never);
     repo.itemCount.mockResolvedValue(3); // dá para a 1ª vaca (2) e a galinha (1); a 2ª vaca fica com fome
     await production.feedAnimals("u1");
     expect(repo.setAnimalsFed).toHaveBeenCalledWith(tx, ["a1", "a4"], new Date(T0));

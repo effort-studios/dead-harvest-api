@@ -38,7 +38,8 @@ async function requirePlot(tx: repo.Tx, saveId: string, x: number, y: number) {
 // Ara os tiles que ainda são terra (os outros ficam como estão)
 // Cada ação de tile/árvore é um `Action` solto (`xxxAction`), para o fazendeiro (farmer.service) rodar na hora em
 // que chega ao alvo; as funções exportadas abaixo só embrulham no `act`.
-export const tillAction = (input: TilesInput): Action =>
+export const tillAction =
+  (input: TilesInput): Action =>
   async (tx, save) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const used = new Set(plot.tiles.map(tileKey));
@@ -54,7 +55,8 @@ export const tillAction = (input: TilesInput): Action =>
   };
 
 // Desfaz a aragem dos tiles arados e vazios (com planta não: colha antes)
-export const untillAction = (input: TilesInput): Action =>
+export const untillAction =
+  (input: TilesInput): Action =>
   async (tx, save) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const byKey = new Map(plot.tiles.map((t) => [tileKey(t), t]));
@@ -64,7 +66,8 @@ export const untillAction = (input: TilesInput): Action =>
   };
 
 // Planta nos tiles arados, na ordem pedida, enquanto houver semente
-export const plantAction = (input: TilesInput & { cropId: string }): Action =>
+export const plantAction =
+  (input: TilesInput & { cropId: string }): Action =>
   async (tx, save, now) => {
     const crop = await repo.findCrop(tx, input.cropId);
     if (!crop) throw new BadRequestError("Planta desconhecida", "UNKNOWN_CROP");
@@ -82,7 +85,8 @@ export const plantAction = (input: TilesInput & { cropId: string }): Action =>
 
 // Colhe os tiles com planta madura (crescimento conferido pelo relógio do servidor): cada um dá 1 item de
 // colheita, que vai para o armazém (inventário) e é vendido ou usado nas máquinas
-export const harvestAction = (input: TilesInput): Action =>
+export const harvestAction =
+  (input: TilesInput): Action =>
   async (tx, save, now) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const byKey = new Map(plot.tiles.map((t) => [tileKey(t), t]));
@@ -115,7 +119,8 @@ function boostable(plot: { tiles: PlotTile[] }, input: TilesInput, already: (t: 
 const settled = (t: PlotTile, now: number) => (t.state === "planted" ? { row: t.row, col: t.col, ...settleGrowth(t, now) } : { row: t.row, col: t.col });
 
 // Aduba os tiles (arados ou já plantados) que não estão adubados, enquanto houver adubo
-export const fertilizeAction = (input: TilesInput): Action =>
+export const fertilizeAction =
+  (input: TilesInput): Action =>
   async (tx, save, now) => {
     const plot = await requirePlot(tx, save.id, input.x, input.y);
     const fresh = boostable(plot, input, (t) => t.fertilized, { verb: "adubar", code: "TILES_ALREADY_FERTILIZED" });
@@ -127,7 +132,8 @@ export const fertilizeAction = (input: TilesInput): Action =>
   };
 
 // Rega os tiles (arados ou já plantados) que não estão regados, 1 carga do regador por tile
-export const waterAction = (input: TilesInput): Action =>
+export const waterAction =
+  (input: TilesInput): Action =>
   async (tx, save, now) => {
     if (save.canCharges === null) throw new UnprocessableError("Compre o regador na loja", "NO_CAN");
     const plot = await requirePlot(tx, save.id, input.x, input.y);
@@ -185,7 +191,8 @@ export const buyPlot = (userId: string, input: { x: number; y: number }) =>
   });
 
 // Colhe as frutas de uma árvore; ela só repõe depois do tempo de rebrota
-export const harvestTreeAction = (treeId: string): Action =>
+export const harvestTreeAction =
+  (treeId: string): Action =>
   async (tx, save, now) => {
     const tree = await repo.findTree(tx, treeId);
     if (!tree) throw new NotFoundError("Árvore não encontrada", "TREE_NOT_FOUND");
