@@ -447,9 +447,21 @@ describe("concorrência (o save é travado com FOR UPDATE)", () => {
     const p = await newPlayer("race-plant");
     await p.till([0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [0, 5]);
     const results = await Promise.all([0, 1, 2, 3, 4, 5].map((col) => p.plant("pumpkin", [0, col])));
-    expect(results.every((r) => r.status === 200)).toBe(true);
+    // 2 sementes de abóbora: dois pedidos entram, os outros são recusados sem semente
+    expect(results.filter((r) => r.status === 200)).toHaveLength(2);
+    expect(results.filter((r) => r.status === 422).every((r) => r.body.code === "NO_SEEDS")).toBe(true);
+    const planted = (await p.state()).plots[0].grid[0].filter((t: { state: string }) => t.state === "planted");
+    expect(planted).toHaveLength(2);
+  });
+
+  it("marcar mais tiles do que sementes só enfileira o que dá para plantar", async () => {
+    const p = await newPlayer("seed-cap");
+    await p.till([0, 0], [0, 1], [0, 2], [0, 3]);
+    const res = await p.plant("pumpkin", [0, 0], [0, 1], [0, 2], [0, 3]);
+    expect(res.status).toBe(200);
     const planted = (await p.state()).plots[0].grid[0].filter((t: { state: string }) => t.state === "planted");
     expect(planted).toHaveLength(2); // 2 sementes de abóbora
+    expect(res.body.farmer.jobs.length).toBeLessThanOrEqual(2);
   });
 
   it("colher a mesma árvore em paralelo dá as frutas uma vez só", async () => {
