@@ -1,9 +1,9 @@
-import { AppError, BadRequestError, NotFoundError, UnprocessableError } from "../../../shared/errors/AppError";
+import { AppError, BadRequestError, ConflictError, NotFoundError, UnprocessableError } from "../../../shared/errors/AppError";
 import type { EnqueueInput, WalkInput } from "../dto/game.dto";
 import type { GameState } from "../entities/game-state";
 import * as repo from "../repositories/game.repository";
 import { clampWalk, distance, positionAt, schedule, type Cell } from "../utils/farmer-timeline";
-import { GRID_SIZE, MAX_FARM_JOBS } from "../utils/game.constants";
+import { FERTILIZER_ITEM, GRID_SIZE, MAX_FARM_JOBS, WATERING_CAN } from "../utils/game.constants";
 import { barnCollectTarget, machineCollectTarget, wellTarget } from "../utils/layout";
 import * as actions from "./game-actions.service";
 import { loadState } from "./game-state.service";
@@ -112,11 +112,15 @@ export const enqueue = (userId: string, input: EnqueueInput) =>
   withFarmer(userId, async (tx, save, now) => {
     const pending = await repo.findJobs(tx, save.id);
     const candidates = await toJobs(tx, save, input);
+    if (input.action === "refill_can" && chargesAfter(save.canCharges ?? 0, pending) >= WATERING_CAN.charges) {
+      throw new ConflictError("O regador já está cheio", "CAN_FULL");
+    }
 
     // o mesmo tile/árvore não entra duas vezes na fila (cliques repetidos)
     const queued = new Set(pending.map(keyOf));
     let fresh = candidates.filter((j) => !queued.has(keyOf(j)));
-    if (input.action === "plant") fresh = await withinSeeds(tx, save.id, input.cropId, pending, fresh);
+    fresh = await stillPossible(tx, save, input, pending, fresh);
+    fresh = await withinSupplies(tx, save, input, pending, fresh);
     if (fresh.length === 0) return;
     if (pending.length + fresh.length > MAX_FARM_JOBS) {
       throw new UnprocessableError(`A fila do fazendeiro aguenta no máximo ${MAX_FARM_JOBS} tarefas`, "FARM_QUEUE_FULL");
@@ -224,16 +228,71 @@ async function toJobs(tx: repo.Tx, save: repo.LockedSave, input: EnqueueInput): 
   }));
 }
 
-// Só enfileira plantio para as sementes que sobram (estoque menos o que já está na fila), senão o
-// fazendeiro gastaria tempo andando e gesticulando por pedidos que vão ser recusados sem semente
-async function withinSeeds(tx: repo.Tx, saveId: string, cropId: string, pending: repo.FarmJobRow[], fresh: repo.NewFarmJob[]) {
-  const crop = await repo.findCrop(tx, cropId);
-  if (!crop) throw new BadRequestError("Planta desconhecida", "UNKNOWN_CROP");
-  const have = await repo.itemCount(tx, saveId, crop.seedItemId);
-  const queuedPlants = pending.filter((j) => j.action === "plant" && j.cropId === cropId).length;
-  const left = have - queuedPlants;
-  if (fresh.length > 0 && left <= 0) throw new UnprocessableError(`Você não tem sementes de ${crop.name.toLowerCase()}`, "NO_SEEDS");
-  return fresh.slice(0, Math.max(left, 0));
+// Pedidos de tile que não têm como dar certo (arar o que já é arado, plantar em terra sem arar, colher onde não
+// há planta, regar o que já está regado) não entram na fila: o servidor só os recusaria quando ele chegasse lá,
+// depois de andar e gesticular à toa. O que a fila já vai fazer conta: arar e plantar na mesma fila vale.
+// Só some o que é certo que falha; se o estado depois de um pedido é incerto (colheita), o pedido fica.
+type TileState = "soil" | "tilled" | "planted";
+const TILE_RULES: Record<string, { needs: TileState[]; becomes: TileState[] }> = {
+  till: { needs: ["soil"], becomes: ["tilled"] },
+  untill: { needs: ["tilled"], becomes: ["soil"] },
+  plant: { needs: ["tilled"], becomes: ["planted"] },
+  harvest: { needs: ["planted"], becomes: ["soil", "tilled"] },
+  water: { needs: ["tilled", "planted"], becomes: ["tilled", "planted"] },
+  fertilize: { needs: ["tilled", "planted"], becomes: ["tilled", "planted"] },
+};
+
+async function stillPossible(tx: repo.Tx, save: repo.LockedSave, input: EnqueueInput, pending: repo.FarmJobRow[], fresh: repo.NewFarmJob[]) {
+  const rule = TILE_RULES[input.action];
+  if (!rule || !("tiles" in input) || fresh.length === 0) return fresh;
+  const plot = await repo.findPlot(tx, save.id, input.x, input.y);
+  if (!plot) return fresh;
+  const base = new Map(plot.tiles.map((t) => [`${t.row},${t.col}`, t]));
+  const flag = input.action === "water" ? "watered" : input.action === "fertilize" ? "fertilized" : null;
+
+  return fresh.filter((job) => {
+    const tile = base.get(`${job.row},${job.col}`);
+    const states = new Set<TileState>([tile ? (tile.state as TileState) : "soil"]);
+    const queued = pending.filter((j) => j.plotX === job.plotX && j.plotY === job.plotY && j.row === job.row && j.col === job.col);
+    for (const j of queued) {
+      const r = TILE_RULES[j.action];
+      if (r && r.needs.some((st) => states.has(st))) r.becomes.forEach((st) => states.add(st));
+    }
+    if (!rule.needs.some((st) => states.has(st))) return false;
+    // já regado/adubado e nada na fila mexe nesse tile: não tem o que fazer
+    return !(flag && tile?.[flag] && queued.length === 0);
+  });
+}
+
+// Cargas do regador quando a fila toda terminar: regar gasta uma, ir ao poço enche
+const chargesAfter = (charges: number, pending: repo.FarmJobRow[]) =>
+  pending.reduce((left, j) => (j.action === "water" ? left - 1 : j.action === "refill_can" ? WATERING_CAN.charges : left), charges);
+
+// Só enfileira o que dá para fazer com o que o jogador tem (sementes, adubo, água do regador), descontando o
+// que já está na fila. Senão o fazendeiro gastaria tempo andando e gesticulando por pedidos que o servidor
+// vai recusar quando chegar a vez deles.
+async function withinSupplies(tx: repo.Tx, save: repo.LockedSave, input: EnqueueInput, pending: repo.FarmJobRow[], fresh: repo.NewFarmJob[]) {
+  if (fresh.length === 0) return fresh;
+  let left: number;
+  if (input.action === "plant") {
+    const crop = await repo.findCrop(tx, input.cropId);
+    if (!crop) throw new BadRequestError("Planta desconhecida", "UNKNOWN_CROP");
+    const queued = pending.filter((j) => j.action === "plant" && j.cropId === crop.id).length;
+    left = (await repo.itemCount(tx, save.id, crop.seedItemId)) - queued;
+    if (left <= 0) throw new UnprocessableError(`Você não tem sementes de ${crop.name.toLowerCase()}`, "NO_SEEDS");
+  } else if (input.action === "fertilize") {
+    const queued = pending.filter((j) => j.action === "fertilize").length;
+    left = (await repo.itemCount(tx, save.id, FERTILIZER_ITEM)) - queued;
+    if (left <= 0) throw new UnprocessableError("Você não tem adubo (faça na Composteira)", "NO_FERTILIZER");
+  } else if (input.action === "water") {
+    if (save.canCharges === null) throw new UnprocessableError("Compre o regador na loja", "NO_CAN");
+    // a fila anda em ordem: regar gasta carga, e ir ao poço enche o regador de novo
+    left = chargesAfter(save.canCharges, pending);
+    if (left <= 0) throw new UnprocessableError("O regador está vazio: encha no poço", "CAN_EMPTY");
+  } else {
+    return fresh;
+  }
+  return fresh.slice(0, left);
 }
 
 // Ordem de trabalho: sempre o mais perto de onde ele está (vizinho mais próximo)
